@@ -145,8 +145,21 @@
     .mem { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; }
     .kv { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: 13px/1.4 var(--mono); }
     .kv b { color: var(--muted); font-weight: 500; }
-    #turtle-wrap { display: none; padding: 8px; }
+    .skip {
+      position: absolute; left: 10px; top: -48px; z-index: 30;
+      background: var(--ink); color: #fff; padding: 8px 12px; border-radius: 999px;
+      text-decoration: none; font-weight: 600;
+    }
+    .skip:focus { top: 10px; }
+    .draft-banner {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px;
+      background: color-mix(in srgb, var(--warn) 12%, var(--paper)); font-size: 0.9rem;
+    }
+    .draft-banner[hidden] { display: none; }
+    #turtle-wrap { display: none; padding: 8px 8px 4px; }
     #turtle { width: 100%; height: 180px; background: var(--bg); border-radius: 8px; }
+    .turtle-hint { font-size: 0.75rem; color: var(--muted); padding: 6px 4px 4px; }
     .ac {
       position: absolute; z-index: 5; background: var(--paper); border: 1px solid var(--line);
       border-radius: 8px; max-height: 180px; overflow: auto; min-width: 160px; display: none;
@@ -169,6 +182,7 @@
   </style>
 </head>
 <body>
+  <a class="skip" href="#code">Aller au code</a>
   <div class="app" id="app">
     <header class="top">
       <div>
@@ -180,9 +194,14 @@
           <div class="brand-links">
             <a href="t4c2_web.html" aria-current="page">Playground</a>
             <a href="docs.html">Référence</a>
+            <a href="fiche.html">Fiche prof</a>
           </div>
         </nav>
         <h1>Playground <span>Écris du français. Exécuter : ⌘↵</span></h1>
+        <div class="draft-banner" id="draft-banner" hidden>
+          <span>Le brouillon enregistré était cassé. On a remis un programme neuf.</span>
+          <button type="button" id="btn-draft-ok">OK</button>
+        </div>
       </div>
       <div class="actions">
         <button class="primary" id="btn-run" type="button" aria-label="Exécuter" title="Exécuter ⌘↵">
@@ -240,7 +259,10 @@ affiche x
           <div class="card-h"><span>Sortie</span><span id="status" class="status"></span></div>
           <div class="out" id="out"><div class="out-empty">Tape <code>affiche «bonjour»</code> puis Exécuter.</div></div>
           <div class="mission-bar" id="mission-bar" hidden></div>
-          <div id="turtle-wrap"><canvas id="turtle" width="520" height="180" aria-label="Dessin de la tortue"></canvas></div>
+          <div id="turtle-wrap">
+            <canvas id="turtle" width="520" height="180" aria-label="Dessin de la tortue"></canvas>
+            <p class="turtle-hint">La tortue commence au centre, regardant vers le haut. <code>avance 50</code> · <code>tourne 90</code></p>
+          </div>
         </section>
         <section class="card" style="min-height: 140px;">
           <div class="card-h"><span>Mémoire</span></div>
@@ -287,15 +309,15 @@ affiche x
         <div class="ref-card">
           <h3>Aller plus loin</h3>
           <p><code>fonc double x … retourne … fin</code></p>
-          <p><code>liste 1 2 3</code> <code>pousse</code> <code>element</code> <code>taille</code></p>
+          <p><code>liste 1 2 3</code> <code>premier</code> <code>dernier</code> <code>element</code> <code>taille</code></p>
           <p><code>avance 50</code> <code>tourne 90</code> <code>leve</code> <code>pose</code></p>
         </div>
       </div>
     </section>
 
     <footer>
-      <span>T4C2 1.2 — clarté, créativité, accessibilité. Par Teo Comyn.</span>
-      <span>Les listes commencent à 1. Les mots-clés ignorent les majuscules. 3,14 est un nombre.</span>
+      <span>T4C2 1.3 — clarté, créativité, accessibilité. Par Teo Comyn.</span>
+      <span>Les listes commencent à 1. Intégrer : <code>t4c2_web.html?embed=1</code></span>
     </footer>
   </div>
 
@@ -339,6 +361,39 @@ affiche x
       document.documentElement.dataset.theme = name;
       themeBtn.textContent = name === "dark" ? "Thème clair" : "Thème sombre";
       localStorage.setItem("t4c2-theme", name);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = name === "dark" ? "#10141b" : "#e8f0f8";
+    }
+
+    function showDraftBanner(msg) {
+      const el = document.getElementById("draft-banner");
+      if (!el) return;
+      el.hidden = false;
+      el.querySelector("span").textContent = msg;
+    }
+
+    function readStoredCode() {
+      try {
+        const raw = localStorage.getItem("t4c2-code");
+        if (!raw) return null;
+        const trimmed = raw.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+          try {
+            const obj = JSON.parse(trimmed);
+            if (obj && typeof obj.code === "string") return obj.code;
+            throw new Error("brouillon");
+          } catch {
+            localStorage.removeItem("t4c2-code");
+            localStorage.removeItem("t4c2-mission");
+            showDraftBanner("Le brouillon enregistré était cassé. On a remis un programme neuf.");
+            return null;
+          }
+        }
+        return raw;
+      } catch {
+        showDraftBanner("Impossible de lire le brouillon local. On repart à zéro.");
+        return null;
+      }
     }
 
     function lineCount() { return codeEl.value.split("\n").length; }
@@ -406,24 +461,63 @@ affiche x
       return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
     }
 
+    function turtleMoved(t) {
+      if (!t) return false;
+      const path = t.path && t.path.length;
+      const xy = t.x || t.y;
+      const turned = typeof t.angle === "number" && t.angle !== -90;
+      return !!(path || xy || turned);
+    }
+
     function drawTurtle(t) {
-      if (!t || !t.path || !t.path.length) {
+      if (!turtleMoved(t)) {
         turtleWrap.style.display = "none";
         return;
       }
       turtleWrap.style.display = "block";
       const ctx = turtle.getContext("2d");
       const w = turtle.width, h = turtle.height;
+      const ink = getComputedStyle(document.documentElement);
+      const accent = ink.getPropertyValue("--accent").trim() || "#14181f";
+      const grid = ink.getPropertyValue("--line").trim() || "#d5dde6";
       ctx.clearRect(0, 0, w, h);
-      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+      ctx.strokeStyle = grid;
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= w; x += 20) {
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= h; y += 20) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(w, y + 0.5);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = accent;
       ctx.lineWidth = 2;
       const ox = w / 2, oy = h / 2;
-      t.path.forEach((seg) => {
+      (t.path || []).forEach((seg) => {
         ctx.beginPath();
         ctx.moveTo(ox + seg.x1, oy + seg.y1);
         ctx.lineTo(ox + seg.x2, oy + seg.y2);
         ctx.stroke();
       });
+      const tx = ox + (t.x || 0);
+      const ty = oy + (t.y || 0);
+      const rad = ((typeof t.angle === "number" ? t.angle : -90) * Math.PI) / 180;
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.rotate(rad);
+      ctx.beginPath();
+      ctx.moveTo(11, 0);
+      ctx.lineTo(-7, 7);
+      ctx.lineTo(-7, -7);
+      ctx.closePath();
+      ctx.fillStyle = accent;
+      ctx.fill();
+      ctx.restore();
     }
 
     function dirty() { return codeEl.value !== baseline; }
@@ -710,12 +804,22 @@ affiche x
     const savedTheme = localStorage.getItem("t4c2-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
     applyTheme(q.get("theme") || savedTheme);
     if (q.get("c")) {
-      try { codeEl.value = b64d(q.get("c")); baseline = codeEl.value; } catch {}
-    } else if (localStorage.getItem("t4c2-code")) {
-      codeEl.value = localStorage.getItem("t4c2-code");
-      baseline = codeEl.value;
-      currentMission = localStorage.getItem("t4c2-mission") || "";
+      try {
+        codeEl.value = b64d(q.get("c"));
+        baseline = codeEl.value;
+      } catch {
+        showDraftBanner("Le lien partagé était cassé. On a remis un programme neuf.");
+      }
+    } else {
+      const stored = readStoredCode();
+      if (stored) {
+        codeEl.value = stored;
+        baseline = stored;
+        try { currentMission = localStorage.getItem("t4c2-mission") || ""; } catch { currentMission = ""; }
+      }
     }
+    const draftOk = document.getElementById("btn-draft-ok");
+    if (draftOk) draftOk.onclick = () => { document.getElementById("draft-banner").hidden = true; };
     updateHighlight();
   </script>
 </body>

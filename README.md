@@ -4,7 +4,7 @@
 
 T4C2 sert à apprendre à programmer **en français**, à partir de 10 ans. Plus textuel que Scratch, plus français que Python.
 
-Version **1.2.0**. Licence MIT. Site : [github.com/teocomyn/t4c2.dev](https://github.com/teocomyn/t4c2.dev).
+Version **1.3.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
 
 ---
 
@@ -117,6 +117,8 @@ concat «Teo» « Comyn»
 longueur «T4C2»
 
 soit notes liste 12 15 18
+affiche premier notes
+affiche dernier notes
 affiche element notes 2
 pousse notes 20
 
@@ -131,7 +133,7 @@ leve
 pose
 ```
 
-Les fonctions se déclarent **avant** de s’en servir.
+Les fonctions peuvent être déclarées **plus bas** que l’appel.
 
 ---
 
@@ -155,9 +157,11 @@ Un seul fichier moteur : `t4c2.js`. Le playground le charge, il ne le recopie pl
 | Fichier | Rôle |
 |---|---|
 | `t4c2.js` | Moteur + CLI + REPL |
+| `t4c2.d.ts` | Types TypeScript |
 | `index.html` | Accueil |
-| `t4c2_web.html` | Playground |
+| `t4c2_web.html` | Playground (`?embed=1` pour iframe) |
 | `docs.html` | Référence |
+| `fiche.html` | Séance prof 45 min |
 | `t4c2.test.js` | Tests |
 | `exemples/*.t4c2` | Programmes |
 | `LICENSE` | MIT |
@@ -174,6 +178,7 @@ instruction = affiche expr
             | repete expr bloc fin
             | tant_que expr faire bloc fin
             | pour ident de expr a expr bloc fin
+            | pour chaque ident dans expr bloc fin
             | fonc ident { ident } bloc fin
             | expr
 expr        = nombre | texte | vrai | faux | ident | op args…

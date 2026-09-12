@@ -1,6 +1,6 @@
 {
   "name": "t4c2",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "homepage": "https://github.com/teocomyn/t4c2.dev",
   "repository": {
     "type": "git",
@@ -15,11 +15,20 @@
   "author": "Teo Comyn",
   "type": "commonjs",
   "main": "./t4c2.js",
+  "types": "./t4c2.d.ts",
+  "exports": {
+    ".": {
+      "types": "./t4c2.d.ts",
+      "require": "./t4c2.js",
+      "default": "./t4c2.js"
+    }
+  },
   "bin": {
     "t4c2": "./t4c2.js"
   },
   "files": [
     "t4c2.js",
+    "t4c2.d.ts",
     "t4c2_web.html",
     "README.md",
     "LICENSE",

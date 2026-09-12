@@ -2,7 +2,7 @@
 // T4C2 — Langage de programmation en français
 // Un seul moteur : navigateur + Node. Pas d'effet de bord à l'import.
 
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 
 const STMT = new Set([
   "affiche", "soit", "set", "aide", "si", "alors", "sinon", "sinon_si", "fin",
@@ -18,7 +18,7 @@ const BINARY = new Set([
   "et", "ou", "concat", "element",
 ]);
 
-const UNARY = new Set(["non", "racine", "arrondis", "longueur", "taille", "absolu"]);
+const UNARY = new Set(["non", "racine", "arrondis", "longueur", "taille", "absolu", "premier", "dernier"]);
 
 const SPECIAL_EXPR = new Set(["aleatoire", "liste", "vrai", "faux", "minimum", "maximum"]);
 
@@ -774,6 +774,12 @@ function createRuntime(ast, options = {}) {
           }
           return args[0].length;
         }
+        if (op === "premier" || op === "dernier") {
+          if (!Array.isArray(args[0]) || !args[0].length) {
+            throw new T4C2Error(`${op} attend une liste qui n'est pas vide.`, expr.line, expr.col);
+          }
+          return op === "premier" ? args[0][0] : args[0][args[0].length - 1];
+        }
         if (op === "concat") return String(args[0]) + String(args[1]);
         if (op === "element") {
           if (!Array.isArray(args[0])) {
@@ -881,7 +887,8 @@ function createRuntime(ast, options = {}) {
           "T4C2 — affiche, soit, si, pour, pour chaque, repete, tant_que",
           "Calcul : ajoute soustrait multiplie divise modulo puissance racine arrondis aleatoire minimum maximum absolu",
           "Texte : «bonjour» ou \"bonjour\"  ·  Nombre : 3,14 ou -5",
-          "Plus loin : fonc, liste, demande, avance / tourne",
+          "Listes : premier dernier taille element pousse · Tortue : avance tourne leve pose",
+          "Plus loin : fonc, demande",
         ].forEach((line) => emit(line, false));
         return { done: false, node };
       }
@@ -1401,6 +1408,8 @@ affiche double 21
   listes: `// Liste
 soit notes liste 12 15 18
 affiche taille notes
+affiche premier notes
+affiche dernier notes
 affiche element notes 2
 pousse notes 20
 affiche notes
@@ -1437,7 +1446,7 @@ function highlightHtml(code, escapeHtml) {
   const esc = escapeHtml || ((s) =>
     String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
   const src = String(code);
-  const re = /(\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer)\b|\b(affiche|aide|soit|set|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|pousse|retire|taille|element|avance|tourne|leve|pose|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
+  const re = /(\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer)\b|\b(affiche|aide|soit|set|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|pousse|retire|taille|element|premier|dernier|avance|tourne|leve|pose|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
   let result = "";
   let last = 0;
   let m;

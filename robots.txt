@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://t4c2-dev.vercel.app/sitemap.xml

@@ -227,6 +227,23 @@ test("demande peut se mettre en pause", () => {
   assert.deepEqual(next.output.map((l) => l.text), ["Teo"]);
 });
 
+test("tortue garde position et angle", () => {
+  const r = runProgram("avance 50");
+  assert.equal(r.ok, true);
+  assert.ok(Math.abs(r.turtle.y + 50) < 1e-9);
+  assert.equal(r.turtle.angle, -90);
+});
+
+test("premier et dernier", () => {
+  assert.deepEqual(
+    out("soit notes liste 12 15 18\naffiche premier notes\naffiche dernier notes"),
+    ["12", "18"],
+  );
+  const empty = runProgram("affiche premier liste");
+  assert.ok(empty.error);
+  assert.match(empty.error.message, /liste qui n'est pas vide/);
+});
+
 test("mission bonjour", () => {
   const { checkMission } = require("./t4c2.js");
   const r = runProgram("affiche «Bonjour T4C2»\naffiche 1");

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0 — 2026-09-12
+
+- Langage : `premier` et `dernier` sur une liste.
+- Playground : tortue avec grille et curseur, lien d’évitement, thème du navigateur, brouillon cassé récupéré.
+- Classe : fiche prof imprimable. Types npm (`t4c2.d.ts`). `sitemap.xml`.
+
 ## 1.2.0 — 2026-09-12
 
 - Langage : `minimum`, `maximum`, `absolu`, `pour chaque x dans liste`.
