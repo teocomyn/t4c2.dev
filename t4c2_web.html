@@ -218,6 +218,9 @@
           <option value="fonctions">Fonction</option>
           <option value="listes">Liste</option>
           <option value="chaque">Pour chaque</option>
+          <option value="fiche">Fiche</option>
+          <option value="texte">Texte</option>
+          <option value="selon">Selon</option>
           <option value="tortue">Tortue</option>
         </select>
         <details class="more">
@@ -309,14 +312,16 @@ affiche x
         <div class="ref-card">
           <h3>Aller plus loin</h3>
           <p><code>fonc double x … retourne … fin</code></p>
-          <p><code>liste 1 2 3</code> <code>premier</code> <code>dernier</code> <code>element</code> <code>taille</code></p>
-          <p><code>avance 50</code> <code>tourne 90</code> <code>leve</code> <code>pose</code></p>
+          <p><code>fiche nom «Léa»</code> <code>champ</code> <code>pose_champ</code></p>
+          <p><code>liste</code> <code>pose_element</code> <code>contient</code> <code>coupe</code></p>
+          <p><code>selon</code> <code>essaie</code> <code>importe maths</code></p>
+          <p><code>avance</code> <code>couleur «bleu»</code> <code>aller_a</code></p>
         </div>
       </div>
     </section>
 
     <footer>
-      <span>T4C2 1.3 — clarté, créativité, accessibilité. Par Teo Comyn.</span>
+      <span>T4C2 1.4 — clarté, créativité, accessibilité. Par Teo Comyn.</span>
       <span>Les listes commencent à 1. Intégrer : <code>t4c2_web.html?embed=1</code></span>
     </footer>
   </div>
@@ -495,10 +500,22 @@ affiche x
         ctx.lineTo(w, y + 0.5);
         ctx.stroke();
       }
-      ctx.strokeStyle = accent;
       ctx.lineWidth = 2;
       const ox = w / 2, oy = h / 2;
+      (t.fills || []).forEach((fill) => {
+        if (!fill.points || fill.points.length < 3) return;
+        ctx.beginPath();
+        fill.points.forEach((p, i) => {
+          const x = ox + p.x, y = oy + p.y;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = fill.color || accent;
+        ctx.fill();
+      });
       (t.path || []).forEach((seg) => {
+        ctx.strokeStyle = seg.color || accent;
         ctx.beginPath();
         ctx.moveTo(ox + seg.x1, oy + seg.y1);
         ctx.lineTo(ox + seg.x2, oy + seg.y2);

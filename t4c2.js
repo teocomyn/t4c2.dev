@@ -2,25 +2,33 @@
 // T4C2 — Langage de programmation en français
 // Un seul moteur : navigateur + Node. Pas d'effet de bord à l'import.
 
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 
 const STMT = new Set([
-  "affiche", "soit", "set", "aide", "si", "alors", "sinon", "sinon_si", "fin",
+  "affiche", "soit", "set", "fixe", "aide", "si", "alors", "sinon", "sinon_si", "fin",
   "repete", "tant_que", "faire", "pour", "interrompre", "continuer",
-  "fonc", "retourne", "demande", "pousse", "retire",
-  "avance", "tourne", "leve", "pose",
+  "fonc", "retourne", "demande", "pousse", "retire", "pose_element", "pose_champ",
+  "avance", "tourne", "leve", "pose", "couleur", "aller_a", "remplis",
+  "selon", "cas", "essaie", "attrape", "importe", "attends",
+  "lis_fichier", "ecris_fichier",
 ]);
 
 const BINARY = new Set([
   "ajoute", "soustrait", "multiplie", "divise", "modulo", "puissance",
   "egal", "different", "plus_grand", "plus_petit",
   "plus_grand_ou_egal", "plus_petit_ou_egal",
-  "et", "ou", "concat", "element",
+  "et", "ou", "concat", "element", "contient",
 ]);
 
-const UNARY = new Set(["non", "racine", "arrondis", "longueur", "taille", "absolu", "premier", "dernier"]);
+const UNARY = new Set([
+  "non", "racine", "arrondis", "longueur", "taille", "absolu", "premier", "dernier",
+  "en_nombre", "en_texte", "est_vide", "copie", "majuscule", "minuscule", "lis_fichier",
+]);
 
-const SPECIAL_EXPR = new Set(["aleatoire", "liste", "vrai", "faux", "minimum", "maximum"]);
+const SPECIAL_EXPR = new Set([
+  "aleatoire", "liste", "fiche", "vrai", "faux", "rien", "minimum", "maximum",
+  "coupe", "remplace", "champ",
+]);
 
 const RESERVED = new Set([
   ...STMT, ...BINARY, ...UNARY, ...SPECIAL_EXPR,
@@ -31,12 +39,82 @@ const T4C2_KEYWORDS = [...RESERVED].sort();
 const T4C2_CONTROL = [
   "si", "alors", "sinon", "sinon_si", "fin", "repete", "tant_que",
   "faire", "pour", "fonc", "retourne", "interrompre", "continuer",
+  "selon", "cas", "essaie", "attrape",
 ];
 
 const MAX_ITERATIONS = 10000;
 const MAX_OUTPUT = 500;
-const MAX_MS = 1000;
+const MAX_MS = typeof window !== "undefined" ? 1000 : 30000;
 const MAX_DEPTH = 64;
+
+const MATHS_ARITY = {
+  sinus: 1, cosinus: 1, tangente: 1, plancher: 1, plafond: 1, troncature: 1,
+};
+const TEMPS_ARITY = { maintenant: 0 };
+
+const COLORS = {
+  rouge: "#e11d48",
+  bleu: "#2563eb",
+  vert: "#16a34a",
+  noir: "#14181f",
+  blanc: "#ffffff",
+  jaune: "#eab308",
+  orange: "#ea580c",
+  violet: "#7c3aed",
+  rose: "#db2777",
+  gris: "#6b7280",
+  cyan: "#0891b2",
+};
+
+function isFiche(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v) && v.__t4c2 === "fiche";
+}
+
+function makeFiche() {
+  const o = Object.create(null);
+  o.__t4c2 = "fiche";
+  return o;
+}
+
+function ficheKeys(v) {
+  return Object.keys(v).filter((k) => k !== "__t4c2");
+}
+
+function resolveColor(name) {
+  const s = String(name).trim().toLowerCase();
+  if (COLORS[s]) return COLORS[s];
+  if (/^#[0-9a-fA-F]{3,8}$/.test(s)) return s;
+  return null;
+}
+
+function safeFilePath(name, node) {
+  if (typeof window !== "undefined") {
+    throw new T4C2Error(
+      "lis_fichier et ecris_fichier marchent dans le terminal, pas dans le navigateur.",
+      node && node.line,
+      node && node.col,
+    );
+  }
+  const raw = String(name);
+  if (!raw || raw.includes("\0") || raw.includes("..") || raw.startsWith("/") || raw.startsWith("\\") || /^[a-zA-Z]:/.test(raw)) {
+    throw new T4C2Error(
+      "chemin interdit. Utilise un fichier relatif dans le dossier courant.",
+      node && node.line,
+      node && node.col,
+    );
+  }
+  const path = require("path");
+  const resolved = path.resolve(process.cwd(), raw);
+  const root = path.resolve(process.cwd());
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    throw new T4C2Error(
+      "chemin interdit. Utilise un fichier relatif dans le dossier courant.",
+      node && node.line,
+      node && node.col,
+    );
+  }
+  return resolved;
+}
 
 class T4C2Error extends Error {
   constructor(message, line, col) {
@@ -222,15 +300,29 @@ function lexer(input) {
       continue;
     }
 
+    if (c === "(") {
+      tokens.push({ type: "LPAREN", value: "(", raw: "(", line: sl, col: sc });
+      adv();
+      continue;
+    }
+    if (c === ")") {
+      tokens.push({ type: "RPAREN", value: ")", raw: ")", line: sl, col: sc });
+      adv();
+      continue;
+    }
+
     if (identStart(c)) {
       let raw = "";
       while (i < src.length && identPart(src[i])) {
         raw += src[i];
         adv();
       }
-      const name = raw.normalize("NFC").toLowerCase();
-      const type = RESERVED.has(name) || STMT.has(name) ? "KEYWORD" : "IDENT";
-      tokens.push({ type, value: name, raw, line: sl, col: sc });
+      const folded = raw.normalize("NFC").toLowerCase();
+      if (RESERVED.has(folded) || STMT.has(folded)) {
+        tokens.push({ type: "KEYWORD", value: folded, raw, line: sl, col: sc });
+      } else {
+        tokens.push({ type: "IDENT", value: raw.normalize("NFC"), raw, line: sl, col: sc });
+      }
       continue;
     }
 
@@ -241,8 +333,6 @@ function lexer(input) {
         "*": "Essaie : multiplie x y",
         "/": "Essaie : divise x y",
         "=": "Essaie : egal x y",
-        "(": "T4C2 n'utilise pas de parenthèses. Écris : ajoute 1 2",
-        ")": "T4C2 n'utilise pas de parenthèses.",
         ",": "Pour un nombre français, colle les chiffres : 3,14",
       }[c] || "Enlève ce caractère, ou mets le texte entre \"guillemets\"."
     );
@@ -269,6 +359,11 @@ function collectArities(tokens) {
         j++;
       }
       found.set(name, n);
+    }
+    if (tokens[k].value === "importe" && tokens[k + 1] && tokens[k + 1].type === "IDENT") {
+      const mod = tokens[k + 1].value.toLowerCase();
+      if (mod === "maths") Object.entries(MATHS_ARITY).forEach(([n, a]) => found.set(n, a));
+      if (mod === "temps") Object.entries(TEMPS_ARITY).forEach(([n, a]) => found.set(n, a));
     }
   }
   return found;
@@ -309,7 +404,8 @@ function parser(tokens, { functions } = {}) {
 
   function isExprStart(t) {
     if (!t || t.type === "EOF") return false;
-    if (t.type === "NUMBER" || t.type === "STRING" || t.type === "IDENT" || t.value === "result") return true;
+    if (t.type === "NUMBER" || t.type === "STRING" || t.type === "IDENT" || t.type === "LPAREN") return true;
+    if (t.value === "result") return true;
     if (t.type !== "KEYWORD") return false;
     if (STMT.has(t.value) && !SPECIAL_EXPR.has(t.value) && !BINARY.has(t.value) && !UNARY.has(t.value)) {
       return false;
@@ -317,11 +413,27 @@ function parser(tokens, { functions } = {}) {
     return BINARY.has(t.value) || UNARY.has(t.value) || SPECIAL_EXPR.has(t.value);
   }
 
+  function parseKey() {
+    const k = peek();
+    if (!k || (k.type !== "IDENT" && k.type !== "STRING")) {
+      fail("j'attendais un nom de champ. Essaie : champ joueur nom", k);
+    }
+    next();
+    return k.type === "STRING" ? k.value : k.value;
+  }
+
   function parseExpression(depth = 0) {
     if (depth > MAX_DEPTH) fail("expression trop imbriquée.");
     const t = peek();
     if (!t || t.type === "EOF") fail("il manque une valeur ici.");
 
+    if (t.type === "LPAREN") {
+      next();
+      const inner = parseExpression(depth + 1);
+      if (!at("RPAREN")) fail("j'attendais « ) » pour fermer le groupe.", peek());
+      next();
+      return inner;
+    }
     if (t.type === "NUMBER") {
       next();
       return { type: "literal", value: t.value, ...loc(t) };
@@ -334,11 +446,45 @@ function parser(tokens, { functions } = {}) {
       next();
       return { type: "literal", value: t.value === "vrai", ...loc(t) };
     }
+    if (t.value === "rien") {
+      next();
+      return { type: "literal", value: null, ...loc(t) };
+    }
     if (t.value === "liste") {
       next();
       const items = [];
       while (isExprStart(peek())) items.push(parseExpression(depth + 1));
       return { type: "liste", items, ...loc(t) };
+    }
+    if (t.value === "fiche") {
+      next();
+      const pairs = [];
+      while (peek() && (peek().type === "IDENT" || peek().type === "STRING")) {
+        const key = parseKey();
+        pairs.push({ key, value: parseExpression(depth + 1) });
+      }
+      return { type: "fiche", pairs, ...loc(t) };
+    }
+    if (t.value === "champ") {
+      next();
+      const target = parseExpression(depth + 1);
+      const key = parseKey();
+      return { type: "champ", target, key, ...loc(t) };
+    }
+    if (t.value === "coupe") {
+      next();
+      const args = [parseExpression(depth + 1), parseExpression(depth + 1)];
+      if (isExprStart(peek())) args.push(parseExpression(depth + 1));
+      return { type: "call", op: "coupe", args, ...loc(t) };
+    }
+    if (t.value === "remplace") {
+      next();
+      return {
+        type: "call",
+        op: "remplace",
+        args: [parseExpression(depth + 1), parseExpression(depth + 1), parseExpression(depth + 1)],
+        ...loc(t),
+      };
     }
     if (t.value === "aleatoire") {
       next();
@@ -425,17 +571,58 @@ function parser(tokens, { functions } = {}) {
       next();
       return { type: "affiche", expr: parseExpression(), ...loc(t) };
     }
-    if (t.value === "soit" || t.value === "set") {
+    if (t.value === "soit" || t.value === "set" || t.value === "fixe") {
+      const kind = t.value === "fixe" ? "fixe" : "soit";
       next();
       const nameTok = peek();
-      if (nameTok && RESERVED.has(nameTok.value) && nameTok.value !== "result") {
+      if (nameTok && RESERVED.has(String(nameTok.value).toLowerCase()) && nameTok.value !== "result") {
         fail(`« ${nameTok.value} » est un mot de T4C2. Choisis un autre nom.`, nameTok);
       }
       if (!nameTok || (nameTok.type !== "IDENT" && nameTok.value !== "result")) {
-        fail("après soit, j'attendais un nom de variable. Essaie : soit age 12", nameTok);
+        fail(`après ${kind}, j'attendais un nom de variable. Essaie : ${kind} age 12`, nameTok);
       }
       next();
-      return { type: "soit", name: nameTok.value, expr: parseExpression(), ...loc(t) };
+      return { type: kind, name: nameTok.value, expr: parseExpression(), ...loc(t) };
+    }
+    if (t.value === "importe") {
+      next();
+      const nameTok = peek();
+      if (!nameTok || nameTok.type !== "IDENT") {
+        fail("après importe, j'attendais un module : maths, temps ou fichiers", nameTok);
+      }
+      next();
+      return { type: "importe", name: nameTok.value.toLowerCase(), ...loc(t) };
+    }
+    if (t.value === "selon") {
+      next();
+      const expr = parseExpression();
+      const cases = [];
+      while (at("KEYWORD", "cas")) {
+        next();
+        const val = parseExpression();
+        const body = parseBlock(["cas", "sinon", "fin"]);
+        cases.push({ val, body });
+      }
+      let sinon = [];
+      if (at("KEYWORD", "sinon")) {
+        next();
+        sinon = parseBlock(["fin"]);
+      }
+      expectValue("fin");
+      return { type: "selon", expr, cases, sinon, ...loc(t) };
+    }
+    if (t.value === "essaie") {
+      next();
+      const body = parseBlock(["attrape", "fin"]);
+      expectValue("attrape");
+      const nameTok = peek();
+      if (!nameTok || nameTok.type !== "IDENT") {
+        fail("après attrape, j'attendais un nom. Essaie : essaie … attrape e … fin", nameTok);
+      }
+      next();
+      const catchBody = parseBlock(["fin"]);
+      expectValue("fin");
+      return { type: "essaie", body, name: nameTok.value, catchBody, ...loc(t) };
     }
     if (t.value === "si") {
       next();
@@ -521,11 +708,35 @@ function parser(tokens, { functions } = {}) {
       next();
       return { type: "retire", list: parseExpression(), ...loc(t) };
     }
-    if (t.value === "avance" || t.value === "tourne") {
+    if (t.value === "pose_element") {
+      next();
+      return {
+        type: "pose_element",
+        list: parseExpression(),
+        index: parseExpression(),
+        expr: parseExpression(),
+        ...loc(t),
+      };
+    }
+    if (t.value === "pose_champ") {
+      next();
+      const target = parseExpression();
+      const key = parseKey();
+      return { type: "pose_champ", target, key, expr: parseExpression(), ...loc(t) };
+    }
+    if (t.value === "avance" || t.value === "tourne" || t.value === "couleur" || t.value === "attends") {
       const op = next().value;
       return { type: op, expr: parseExpression(), ...loc(t) };
     }
-    if (t.value === "leve" || t.value === "pose") {
+    if (t.value === "aller_a") {
+      next();
+      return { type: "aller_a", x: parseExpression(), y: parseExpression(), ...loc(t) };
+    }
+    if (t.value === "ecris_fichier") {
+      next();
+      return { type: "ecris_fichier", path: parseExpression(), expr: parseExpression(), ...loc(t) };
+    }
+    if (t.value === "leve" || t.value === "pose" || t.value === "remplis") {
       next();
       return { type: t.value, ...loc(t) };
     }
@@ -556,13 +767,17 @@ function isTruthy(val) {
 function formatValue(val) {
   if (val === true) return "vrai";
   if (val === false) return "faux";
+  if (val === null || val === undefined) return "rien";
   if (typeof val === "number") {
     if (!Number.isFinite(val)) return "inconnu";
     if (Number.isInteger(val)) return String(val);
     const rounded = Math.round(val * 1e8) / 1e8;
-    return String(rounded);
+    return String(rounded).replace(".", ",");
   }
   if (Array.isArray(val)) return `[${val.map(formatValue).join(" ")}]`;
+  if (isFiche(val)) {
+    return `{${ficheKeys(val).map((k) => `${k} ${formatValue(val[k])}`).join(" ")}}`;
+  }
   return String(val);
 }
 
@@ -591,13 +806,15 @@ function createRuntime(ast, options = {}) {
   const ask = typeof options.ask === "function" ? options.ask : (yieldAsk ? null : defaultAsk);
   const random = typeof options.random === "function" ? options.random : Math.random;
   let pendingAnswer;
-  const maxMs = options.maxMs ?? MAX_MS;
+  const maxMs = options.maxMs !== undefined ? options.maxMs : MAX_MS;
   const maxIter = options.maxIterations ?? MAX_ITERATIONS;
   const maxOut = options.maxOutput ?? MAX_OUTPUT;
 
   const global = Object.assign({ result: 0 }, options.vars || {});
   const scopes = [global];
+  const constants = [new Set()];
   const functions = new Map();
+  const imported = new Set();
   const lines = [];
   const warnings = [];
   const turtle = {
@@ -606,20 +823,69 @@ function createRuntime(ast, options = {}) {
     angle: -90,
     pen: true,
     path: [],
+    color: "#14181f",
+    fills: [],
   };
 
   let iterations = 0;
   const t0 = Date.now();
   let stopped = null;
 
-  for (const node of ast) {
-    if (node.type === "fonc") {
-      functions.set(node.name, node);
+  function walkNodes(nodes, fn) {
+    if (!nodes) return;
+    const list = Array.isArray(nodes) ? nodes : [nodes];
+    for (const n of list) {
+      if (!n || typeof n !== "object") continue;
+      fn(n);
+      if (n.body) walkNodes(n.body, fn);
+      if (n.sinon) walkNodes(n.sinon, fn);
+      if (n.catchBody) walkNodes(n.catchBody, fn);
+      if (n.branches) n.branches.forEach((b) => walkNodes(b.body, fn));
+      if (n.cases) n.cases.forEach((c) => walkNodes(c.body, fn));
     }
   }
 
-  const body = ast.filter((n) => n.type !== "fonc");
-  const frames = [{ kind: "block", nodes: body, i: 0 }];
+  walkNodes(ast, (node) => {
+    if (node.type === "fonc") functions.set(node.name, node);
+    if (node.type === "importe") applyImport(node.name, node);
+  });
+
+  const body = ast.filter((n) => n.type !== "fonc" && n.type !== "importe");
+  const frames = [{ kind: "block", nodes: body, i: 0, scoped: false }];
+
+  function pushScope() {
+    scopes.push({});
+    constants.push(new Set());
+  }
+
+  function popScope() {
+    if (scopes.length > 1) {
+      scopes.pop();
+      constants.pop();
+    }
+  }
+
+  function applyImport(name, node) {
+    if (imported.has(name)) return;
+    if (name === "maths") {
+      imported.add("maths");
+      setVar("pi", Math.PI, true);
+      return;
+    }
+    if (name === "temps") {
+      imported.add("temps");
+      return;
+    }
+    if (name === "fichiers") {
+      imported.add("fichiers");
+      return;
+    }
+    throw new T4C2Error(
+      `le module « ${name} » n'existe pas. Essaie : importe maths, importe temps, importe fichiers`,
+      node && node.line,
+      node && node.col,
+    );
+  }
 
   function getVar(name, node) {
     if (name === "result") return global.result;
@@ -633,12 +899,23 @@ function createRuntime(ast, options = {}) {
     );
   }
 
-  function setVar(name, value) {
+  function isConstant(name) {
+    for (let s = constants.length - 1; s >= 0; s--) {
+      if (constants[s].has(name)) return true;
+    }
+    return false;
+  }
+
+  function setVar(name, value, fixe) {
     if (name === "result") {
       global.result = value;
       return;
     }
+    if (isConstant(name)) {
+      throw new T4C2Error(`« ${name} » est fixe. Tu ne peux pas le changer.`);
+    }
     scopes[scopes.length - 1][name] = value;
+    if (fixe) constants[constants.length - 1].add(name);
   }
 
   function emit(msg, isError) {
@@ -661,7 +938,7 @@ function createRuntime(ast, options = {}) {
       stopped = "boucle";
       throw new T4C2Error(`boucle trop longue (limite ${maxIter}). Ajoute une condition qui devient fausse.`);
     }
-    if (iterations % 32 === 0 && Date.now() - t0 > maxMs) {
+    if (maxMs > 0 && iterations % 32 === 0 && Date.now() - t0 > maxMs) {
       stopped = "temps";
       throw new T4C2Error(`le programme a pris plus de ${maxMs} ms. Je l'ai arrêté pour ne pas figer l'écran.`);
     }
@@ -701,7 +978,37 @@ function createRuntime(ast, options = {}) {
         return getVar(expr.name, expr);
       case "liste":
         return expr.items.map(evalExpr);
+      case "fiche": {
+        const o = makeFiche();
+        expr.pairs.forEach((p) => {
+          o[p.key] = evalExpr(p.value);
+        });
+        return o;
+      }
+      case "champ": {
+        const target = evalExpr(expr.target);
+        if (!isFiche(target)) {
+          throw new T4C2Error("champ attend une fiche. Essaie : soit joueur fiche nom «Léa»", expr.line, expr.col);
+        }
+        if (expr.key === "__t4c2" || !Object.prototype.hasOwnProperty.call(target, expr.key)) {
+          throw new T4C2Error(`le champ « ${expr.key} » n'existe pas.`, expr.line, expr.col);
+        }
+        return target[expr.key];
+      }
       case "appel": {
+        const args = expr.args.map(evalExpr);
+        if (imported.has("maths") && Object.prototype.hasOwnProperty.call(MATHS_ARITY, expr.name)) {
+          const x = num(args[0], expr.name, expr);
+          if (expr.name === "sinus") return Math.sin(x);
+          if (expr.name === "cosinus") return Math.cos(x);
+          if (expr.name === "tangente") return Math.tan(x);
+          if (expr.name === "plancher") return Math.floor(x);
+          if (expr.name === "plafond") return Math.ceil(x);
+          if (expr.name === "troncature") return Math.trunc(x);
+        }
+        if (imported.has("temps") && expr.name === "maintenant") {
+          return Date.now();
+        }
         const fn = functions.get(expr.name);
         if (!fn) {
           throw new T4C2Error(
@@ -710,12 +1017,12 @@ function createRuntime(ast, options = {}) {
             expr.col,
           );
         }
-        const args = expr.args.map(evalExpr);
         const local = {};
         fn.params.forEach((p, idx) => {
           local[p] = args[idx];
         });
         scopes.push(local);
+        constants.push(new Set());
         const owner = { _return: undefined };
         const fnFrames = [{ kind: "fn", nodes: fn.body, i: 0 }];
         try {
@@ -725,6 +1032,7 @@ function createRuntime(ast, options = {}) {
           }
         } finally {
           scopes.pop();
+          constants.pop();
         }
         const ret = owner._return !== undefined ? owner._return : global.result;
         global.result = ret;
@@ -732,6 +1040,14 @@ function createRuntime(ast, options = {}) {
       }
       case "call": {
         const op = expr.op;
+        if (op === "et") {
+          if (!isTruthy(evalExpr(expr.args[0]))) return false;
+          return isTruthy(evalExpr(expr.args[1]));
+        }
+        if (op === "ou") {
+          if (isTruthy(evalExpr(expr.args[0]))) return true;
+          return isTruthy(evalExpr(expr.args[1]));
+        }
         const args = expr.args.map(evalExpr);
         if (op === "aleatoire") {
           if (args.length === 0) return random();
@@ -780,6 +1096,69 @@ function createRuntime(ast, options = {}) {
           }
           return op === "premier" ? args[0][0] : args[0][args[0].length - 1];
         }
+        if (op === "en_nombre") {
+          const raw = String(args[0]).trim().replace(",", ".");
+          const n = Number(raw);
+          if (!Number.isFinite(n) || !/^-?\d+([.,]\d+)?$/.test(String(args[0]).trim())) {
+            throw new T4C2Error(`en_nombre n'arrive pas à lire ${formatValue(args[0])}.`, expr.line, expr.col);
+          }
+          return n;
+        }
+        if (op === "en_texte") return formatValue(args[0]);
+        if (op === "est_vide") {
+          if (Array.isArray(args[0]) || typeof args[0] === "string") return args[0].length === 0;
+          if (isFiche(args[0])) return ficheKeys(args[0]).length === 0;
+          return args[0] === null || args[0] === "";
+        }
+        if (op === "copie") {
+          if (Array.isArray(args[0])) return args[0].slice();
+          if (isFiche(args[0])) {
+            const o = makeFiche();
+            ficheKeys(args[0]).forEach((k) => { o[k] = args[0][k]; });
+            return o;
+          }
+          throw new T4C2Error("copie attend une liste ou une fiche.", expr.line, expr.col);
+        }
+        if (op === "majuscule") return String(args[0]).toLocaleUpperCase("fr-FR");
+        if (op === "minuscule") return String(args[0]).toLocaleLowerCase("fr-FR");
+        if (op === "lis_fichier") {
+          if (!imported.has("fichiers")) {
+            throw new T4C2Error("lis_fichier demande : importe fichiers", expr.line, expr.col);
+          }
+          const fs = require("fs");
+          const p = safeFilePath(args[0], expr);
+          try {
+            return fs.readFileSync(p, "utf8");
+          } catch {
+            throw new T4C2Error(`impossible de lire « ${args[0]} ».`, expr.line, expr.col);
+          }
+        }
+        if (op === "contient") {
+          if (typeof args[0] === "string") return args[0].includes(String(args[1]));
+          if (Array.isArray(args[0])) return args[0].some((v) => valuesEqual(v, args[1]));
+          throw new T4C2Error("contient attend un texte ou une liste.", expr.line, expr.col);
+        }
+        if (op === "coupe") {
+          const start = Math.floor(num(args[1], op, expr));
+          if (typeof args[0] === "string") {
+            const end = args[2] !== undefined ? Math.floor(num(args[2], op, expr)) : args[0].length;
+            if (start < 1 || end < start || end > args[0].length) {
+              throw new T4C2Error(`coupe sort de la plage (1 à ${args[0].length}).`, expr.line, expr.col);
+            }
+            return args[0].slice(start - 1, end);
+          }
+          if (Array.isArray(args[0])) {
+            const end = args[2] !== undefined ? Math.floor(num(args[2], op, expr)) : args[0].length;
+            if (start < 1 || end < start || end > args[0].length) {
+              throw new T4C2Error(`coupe sort de la plage (1 à ${args[0].length}).`, expr.line, expr.col);
+            }
+            return args[0].slice(start - 1, end);
+          }
+          throw new T4C2Error("coupe attend un texte ou une liste.", expr.line, expr.col);
+        }
+        if (op === "remplace") {
+          return String(args[0]).split(String(args[1])).join(String(args[2]));
+        }
         if (op === "concat") return String(args[0]) + String(args[1]);
         if (op === "element") {
           if (!Array.isArray(args[0])) {
@@ -791,8 +1170,6 @@ function createRuntime(ast, options = {}) {
           }
           return args[0][idx - 1];
         }
-        if (op === "et") return isTruthy(args[0]) && isTruthy(args[1]);
-        if (op === "ou") return isTruthy(args[0]) || isTruthy(args[1]);
         if (op === "egal") return valuesEqual(args[0], args[1]);
         if (op === "different") return !valuesEqual(args[0], args[1]);
         if (op === "plus_grand") return args[0] > args[1];
@@ -817,22 +1194,51 @@ function createRuntime(ast, options = {}) {
     }
   }
 
+  function dropFrame(frameList) {
+    const f = frameList.pop();
+    if (f && f.scoped) popScope();
+    return f;
+  }
+
   function unwindLoop(frameList, kind) {
     while (frameList.length) {
       const f = frameList[frameList.length - 1];
       if (f.kind === "repete" || f.kind === "tant_que" || f.kind === "pour" || f.kind === "pour_chaque") {
-        if (kind === "interrompre") frameList.pop();
+        if (kind === "interrompre") dropFrame(frameList);
         else f.i = f.nodes.length;
         return true;
       }
       if (f.kind === "fn") break;
-      frameList.pop();
+      dropFrame(frameList);
     }
     return false;
   }
 
   function enterLoop(frameList, frame) {
+    pushScope();
+    frame.scoped = true;
     frameList.push(frame);
+  }
+
+  function catchEssaie(frameList, err) {
+    while (frameList.length) {
+      const f = frameList[frameList.length - 1];
+      if (f.kind === "essaie") {
+        dropFrame(frameList);
+        pushScope();
+        setVar(f.name, String(err.message || err).replace(/^Ligne \d+, colonne \d+ : /, ""));
+        frameList.push({ kind: "block", nodes: f.catchBody, i: 0, scoped: true });
+        return true;
+      }
+      if (f.kind === "fn") break;
+      dropFrame(frameList);
+    }
+    return false;
+  }
+
+  function enterBlock(frameList, nodes) {
+    pushScope();
+    frameList.push({ kind: "block", nodes, i: 0, scoped: true });
   }
 
   function stepFrames(frameList, owner) {
@@ -867,15 +1273,20 @@ function createRuntime(ast, options = {}) {
             continue;
           }
         }
-        frameList.pop();
+        dropFrame(frameList);
         continue;
       }
 
       const node = f.nodes[f.i];
-      const signal = exec(node, frameList, owner);
-      if (signal && signal.ask) return signal;
-      f.i += 1;
-      return signal || { done: false, node };
+      try {
+        const signal = exec(node, frameList, owner);
+        if (signal && signal.ask) return signal;
+        f.i += 1;
+        return signal || { done: false, node };
+      } catch (err) {
+        if (catchEssaie(frameList, err)) return { done: false, node };
+        throw err;
+      }
     }
     return { done: true };
   }
@@ -884,11 +1295,11 @@ function createRuntime(ast, options = {}) {
     switch (node.type) {
       case "aide": {
         [
-          "T4C2 — affiche, soit, si, pour, pour chaque, repete, tant_que",
+          "T4C2 — affiche, soit, fixe, si, selon, pour, pour chaque, repete, tant_que, essaie",
           "Calcul : ajoute soustrait multiplie divise modulo puissance racine arrondis aleatoire minimum maximum absolu",
-          "Texte : «bonjour» ou \"bonjour\"  ·  Nombre : 3,14 ou -5",
-          "Listes : premier dernier taille element pousse · Tortue : avance tourne leve pose",
-          "Plus loin : fonc, demande",
+          "Texte : contient coupe remplace majuscule minuscule  ·  Nombre : 3,14  ·  rien",
+          "Données : fiche champ pose_champ liste pose_element premier dernier",
+          "Plus loin : fonc, demande, importe maths / temps / fichiers",
         ].forEach((line) => emit(line, false));
         return { done: false, node };
       }
@@ -898,9 +1309,10 @@ function createRuntime(ast, options = {}) {
         global.result = v;
         return { done: false, node };
       }
-      case "soit": {
+      case "soit":
+      case "fixe": {
         const v = evalExpr(node.expr);
-        setVar(node.name, v);
+        setVar(node.name, v, node.type === "fixe");
         global.result = v;
         return { done: false, node };
       }
@@ -912,16 +1324,44 @@ function createRuntime(ast, options = {}) {
         let taken = false;
         for (const br of node.branches) {
           if (isTruthy(evalExpr(br.cond))) {
-            frameList.push({ kind: "block", nodes: br.body, i: 0 });
+            enterBlock(frameList, br.body);
             taken = true;
             break;
           }
         }
         if (!taken && node.sinon.length) {
-          frameList.push({ kind: "block", nodes: node.sinon, i: 0 });
+          enterBlock(frameList, node.sinon);
         }
         return { done: false, node };
       }
+      case "selon": {
+        const v = evalExpr(node.expr);
+        let taken = false;
+        for (const c of node.cases) {
+          if (valuesEqual(v, evalExpr(c.val))) {
+            enterBlock(frameList, c.body);
+            taken = true;
+            break;
+          }
+        }
+        if (!taken && node.sinon.length) enterBlock(frameList, node.sinon);
+        return { done: false, node };
+      }
+      case "essaie": {
+        pushScope();
+        frameList.push({
+          kind: "essaie",
+          nodes: node.body,
+          i: 0,
+          scoped: true,
+          name: node.name,
+          catchBody: node.catchBody,
+        });
+        return { done: false, node };
+      }
+      case "importe":
+        applyImport(node.name, node);
+        return { done: false, node };
       case "repete": {
         const n = evalExpr(node.count);
         if (typeof n !== "number" || n < 0) {
@@ -946,7 +1386,6 @@ function createRuntime(ast, options = {}) {
           throw new T4C2Error("pour attend deux nombres. Essaie : pour i de 1 a 10", node.line, node.col);
         }
         const step = from <= to ? 1 : -1;
-        setVar(node.name, from);
         enterLoop(frameList, {
           kind: "pour",
           nodes: node.body,
@@ -956,6 +1395,7 @@ function createRuntime(ast, options = {}) {
           to,
           step,
         });
+        setVar(node.name, from);
         return { done: false, node };
       }
       case "pour_chaque": {
@@ -964,7 +1404,6 @@ function createRuntime(ast, options = {}) {
           throw new T4C2Error("pour chaque attend une liste. Essaie : pour chaque note dans notes", node.line, node.col);
         }
         if (list.length) {
-          setVar(node.name, list[0]);
           enterLoop(frameList, {
             kind: "pour_chaque",
             nodes: node.body,
@@ -973,6 +1412,7 @@ function createRuntime(ast, options = {}) {
             items: list,
             idx: 0,
           });
+          setVar(node.name, list[0]);
         }
         return { done: false, node };
       }
@@ -1009,13 +1449,38 @@ function createRuntime(ast, options = {}) {
         global.result = list.pop();
         return { done: false, node };
       }
+      case "pose_element": {
+        const list = evalExpr(node.list);
+        if (!Array.isArray(list)) {
+          throw new T4C2Error("pose_element attend une liste.", node.line, node.col);
+        }
+        const idx = Math.floor(num(evalExpr(node.index), "pose_element", node));
+        if (idx < 1 || idx > list.length) {
+          throw new T4C2Error(`l'élément ${idx} n'existe pas (la liste va de 1 à ${list.length}).`, node.line, node.col);
+        }
+        list[idx - 1] = evalExpr(node.expr);
+        global.result = list[idx - 1];
+        return { done: false, node };
+      }
+      case "pose_champ": {
+        const target = evalExpr(node.target);
+        if (!isFiche(target)) {
+          throw new T4C2Error("pose_champ attend une fiche.", node.line, node.col);
+        }
+        if (node.key === "__t4c2") {
+          throw new T4C2Error("ce nom de champ est interdit.", node.line, node.col);
+        }
+        target[node.key] = evalExpr(node.expr);
+        global.result = target[node.key];
+        return { done: false, node };
+      }
       case "avance": {
         const n = num(evalExpr(node.expr), "avance", node);
         const rad = (turtle.angle * Math.PI) / 180;
         const nx = turtle.x + Math.cos(rad) * n;
         const ny = turtle.y + Math.sin(rad) * n;
         if (turtle.pen) {
-          turtle.path.push({ x1: turtle.x, y1: turtle.y, x2: nx, y2: ny });
+          turtle.path.push({ x1: turtle.x, y1: turtle.y, x2: nx, y2: ny, color: turtle.color });
         }
         turtle.x = nx;
         turtle.y = ny;
@@ -1031,6 +1496,65 @@ function createRuntime(ast, options = {}) {
       case "pose":
         turtle.pen = true;
         return { done: false, node };
+      case "couleur": {
+        const c = resolveColor(evalExpr(node.expr));
+        if (!c) {
+          throw new T4C2Error("couleur inconnue. Essaie : rouge bleu vert ou #2f6fed", node.line, node.col);
+        }
+        turtle.color = c;
+        return { done: false, node };
+      }
+      case "aller_a": {
+        const nx = num(evalExpr(node.x), "aller_a", node);
+        const ny = num(evalExpr(node.y), "aller_a", node);
+        if (turtle.pen) {
+          turtle.path.push({ x1: turtle.x, y1: turtle.y, x2: nx, y2: ny, color: turtle.color });
+        }
+        turtle.x = nx;
+        turtle.y = ny;
+        return { done: false, node };
+      }
+      case "remplis": {
+        const pts = [];
+        turtle.path.forEach((seg) => {
+          pts.push({ x: seg.x1, y: seg.y1 });
+          pts.push({ x: seg.x2, y: seg.y2 });
+        });
+        if (pts.length >= 3) {
+          turtle.fills.push({ points: pts, color: turtle.color });
+        }
+        return { done: false, node };
+      }
+      case "attends": {
+        if (!imported.has("temps")) {
+          throw new T4C2Error("attends demande : importe temps", node.line, node.col);
+        }
+        const ms = Math.max(0, Math.floor(num(evalExpr(node.expr), "attends", node)));
+        const cap = maxMs > 0 ? Math.min(ms, Math.max(0, maxMs - (Date.now() - t0))) : ms;
+        if (cap > 0) {
+          if (typeof Atomics !== "undefined" && typeof SharedArrayBuffer !== "undefined") {
+            try {
+              Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, cap);
+            } catch {
+              const end = Date.now() + cap;
+              while (Date.now() < end) { /* pause */ }
+            }
+          } else {
+            const end = Date.now() + cap;
+            while (Date.now() < end) { /* pause */ }
+          }
+        }
+        return { done: false, node };
+      }
+      case "ecris_fichier": {
+        if (!imported.has("fichiers")) {
+          throw new T4C2Error("ecris_fichier demande : importe fichiers", node.line, node.col);
+        }
+        const fs = require("fs");
+        const p = safeFilePath(evalExpr(node.path), node);
+        fs.writeFileSync(p, formatValue(evalExpr(node.expr)), "utf8");
+        return { done: false, node };
+      }
       case "interrompre":
         if (!unwindLoop(frameList, "interrompre")) {
           throw new T4C2Error("interrompre doit être dans une boucle.", node.line, node.col);
@@ -1049,6 +1573,7 @@ function createRuntime(ast, options = {}) {
         return { done: true, returned: true, node };
       }
       case "fonc":
+        functions.set(node.name, node);
         return { done: false, node };
       default:
         throw new T4C2Error(`instruction inconnue : ${node.type}`, node.line, node.col);
@@ -1180,11 +1705,16 @@ function printExpr(expr) {
   if (expr.type === "literal") {
     if (expr.value === true) return "vrai";
     if (expr.value === false) return "faux";
+    if (expr.value === null) return "rien";
     if (typeof expr.value === "string") return `"${expr.value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
     return String(expr.value);
   }
   if (expr.type === "var") return expr.name;
   if (expr.type === "liste") return `liste${expr.items.length ? " " + expr.items.map(printExpr).join(" ") : ""}`;
+  if (expr.type === "fiche") {
+    return `fiche${expr.pairs.map((p) => " " + p.key + " " + printExpr(p.value)).join("")}`;
+  }
+  if (expr.type === "champ") return `champ ${printExpr(expr.target)} ${expr.key}`;
   if (expr.type === "appel") return `${expr.name}${expr.args.length ? " " + expr.args.map(printExpr).join(" ") : ""}`;
   if (expr.type === "call") return `${expr.op}${expr.args.length ? " " + expr.args.map(printExpr).join(" ") : ""}`;
   return "";
@@ -1285,11 +1815,11 @@ function formatT4C2(code) {
       continue;
     }
     const bare = trimmed.replace(/\/\/.*$/, "").replace(/#.*$/, "").trim().toLowerCase();
-    const closer = /^(fin|sinon|sinon_si)\b/.test(bare);
+    const closer = /^(fin|sinon|sinon_si|cas|attrape)\b/.test(bare);
     if (closer) depth = Math.max(0, depth - 1);
     out.push("  ".repeat(depth) + trimmed);
-    if (/^(sinon|sinon_si)\b/.test(bare)) depth += 1;
-    else if (/^(si|repete|tant_que|pour|fonc)\b/.test(bare)) depth += 1;
+    if (/^(sinon|sinon_si|cas|attrape)\b/.test(bare)) depth += 1;
+    else if (/^(si|repete|tant_que|pour|fonc|selon|essaie)\b/.test(bare)) depth += 1;
   }
   return out.join("\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]+$/gm, "").replace(/\s+$/, "") + "\n";
 }
@@ -1320,7 +1850,7 @@ function lintT4C2(code, astReady) {
   const assigned = new Set();
   const read = new Set();
   walk(ast, (node) => {
-    if (node.type === "soit" || node.type === "demande" || node.type === "pour" || node.type === "pour_chaque") {
+    if (node.type === "soit" || node.type === "fixe" || node.type === "demande" || node.type === "pour" || node.type === "pour_chaque" || node.type === "essaie") {
       assigned.add(node.name);
     }
     if (node.type === "var") read.add(node.name);
@@ -1342,6 +1872,9 @@ function lintT4C2(code, astReady) {
       warnings.push({ text: `tu poses « ${name} » mais tu ne l'utilises jamais.`, line: 0 });
     }
   });
+  if (/\bset\b/i.test(String(code))) {
+    warnings.push({ text: "set est l'ancien nom de soit. Écris soit.", line: 0 });
+  }
   return warnings;
 }
 
@@ -1421,7 +1954,28 @@ pour chaque note dans notes
 fin
 affiche maximum notes
 `,
+  fiche: `// Fiche
+soit joueur fiche nom «Léa» score 12
+affiche champ joueur nom
+pose_champ joueur score 20
+affiche champ joueur score
+`,
+  texte: `// Texte
+affiche majuscule «t4c2»
+affiche contient «bonjour» «bon»
+affiche coupe «bonjour» 1 3
+`,
+  selon: `// Selon
+soit jour «lundi»
+selon jour
+  cas «lundi»
+    affiche «début»
+  sinon
+    affiche «autre»
+fin
+`,
   tortue: `// Carré
+couleur «bleu»
 repete 4
   avance 80
   tourne 90
@@ -1438,7 +1992,10 @@ const MISSIONS = {
   fibonacci: { title: "Fibonacci", goal: "Affiche au moins 0 puis 1.", expect: null, first: ["0", "1"], next: "fonctions" },
   fonctions: { title: "Fonction", goal: "Une fonction double qui affiche 42.", expect: ["42"], next: "listes" },
   listes: { title: "Liste", goal: "Une liste de notes. Affiche au moins la taille.", expect: null, contains: ["3"], next: "chaque" },
-  chaque: { title: "Pour chaque", goal: "Parcours une liste avec pour chaque.", expect: ["12", "15", "18", "18"], next: "tortue" },
+  chaque: { title: "Pour chaque", goal: "Parcours une liste avec pour chaque.", expect: ["12", "15", "18", "18"], next: "fiche" },
+  fiche: { title: "Fiche", goal: "Une fiche avec un nom et un score.", expect: ["Léa", "20"], next: "texte" },
+  texte: { title: "Texte", goal: "Majuscule, contient, coupe.", expect: ["T4C2", "vrai", "bon"], next: "selon" },
+  selon: { title: "Selon", goal: "Selon un jour, affiche début ou autre.", expect: ["début"], next: "tortue" },
   tortue: { title: "Tortue", goal: "Dessine un carré : 4 fois avance et tourne.", expect: null, turtle: 4, next: null },
 };
 
@@ -1446,7 +2003,7 @@ function highlightHtml(code, escapeHtml) {
   const esc = escapeHtml || ((s) =>
     String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
   const src = String(code);
-  const re = /(\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer)\b|\b(affiche|aide|soit|set|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|pousse|retire|taille|element|premier|dernier|avance|tourne|leve|pose|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
+  const re = /(\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|champ|pose_champ|pose_element|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
   let result = "";
   let last = 0;
   let m;
@@ -1524,7 +2081,7 @@ function runCli(argv) {
       const tokens = lexer(src);
       let open = 0;
       for (const t of tokens) {
-        if (t.value === "si" || t.value === "repete" || t.value === "tant_que" || t.value === "pour" || t.value === "fonc") open++;
+        if (t.value === "si" || t.value === "repete" || t.value === "tant_que" || t.value === "pour" || t.value === "fonc" || t.value === "selon" || t.value === "essaie") open++;
         if (t.value === "fin") open--;
       }
       return open > 0;

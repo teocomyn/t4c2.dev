@@ -9,7 +9,9 @@ export type T4C2Turtle = {
   y: number;
   angle: number;
   pen: boolean;
-  path: { x1: number; y1: number; x2: number; y2: number }[];
+  color?: string;
+  path: { x1: number; y1: number; x2: number; y2: number; color?: string }[];
+  fills?: { points: { x: number; y: number }[]; color?: string }[];
 };
 
 export type T4C2Ask = { name: string; question: string };

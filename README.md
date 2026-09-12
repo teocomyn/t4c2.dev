@@ -4,7 +4,7 @@
 
 T4C2 est un vrai langage : tu écris **en français**, ça tourne tout de suite. Plus lisible que Python. Plus textuel que Scratch.
 
-Version **1.3.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
+Version **1.4.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
 
 ---
 
@@ -118,9 +118,32 @@ longueur «T4C2»
 
 soit notes liste 12 15 18
 affiche premier notes
-affiche dernier notes
-affiche element notes 2
-pousse notes 20
+pose_element notes 2 20
+affiche contient notes 20
+
+soit joueur fiche nom «Léa» score 12
+affiche champ joueur nom
+pose_champ joueur score 21
+
+affiche majuscule «t4c2»
+affiche coupe «bonjour» 1 3
+affiche ajoute (multiplie 2 3) 4
+
+selon jour
+  cas «lundi»
+    affiche «début»
+  sinon
+    affiche «autre»
+fin
+
+essaie
+  affiche divise 1 0
+attrape e
+  affiche e
+fin
+
+importe maths
+affiche sinus pi
 
 fonc double x
   retourne multiplie x 2
@@ -133,7 +156,9 @@ leve
 pose
 ```
 
-Les fonctions peuvent être déclarées **plus bas** que l’appel.
+Les fonctions peuvent être déclarées **plus bas** que l’appel.  
+Les parenthèses ne servent qu’à **grouper**. `set` est l’ancien nom de `soit`.  
+`3,14` s’affiche `3,14`. Les noms gardent leur casse ; seuls les mots-clés l’ignorent.
 
 ---
 
@@ -179,9 +204,12 @@ instruction = affiche expr
             | tant_que expr faire bloc fin
             | pour ident de expr a expr bloc fin
             | pour chaque ident dans expr bloc fin
+            | selon expr { cas expr bloc } [ sinon bloc ] fin
+            | essaie bloc attrape ident bloc fin
             | fonc ident { ident } bloc fin
+            | importe ident
             | expr
-expr        = nombre | texte | vrai | faux | ident | op args…
+expr        = nombre | texte | vrai | faux | rien | ident | ( expr ) | op args…
 ```
 
 ---

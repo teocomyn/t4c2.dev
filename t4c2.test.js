@@ -15,13 +15,13 @@ test("require n'exécute pas de démo", () => {
 test("affiche les littéraux", () => {
   assert.deepEqual(out("affiche 1"), ["1"]);
   assert.deepEqual(out("affiche 0"), ["0"]);
-  assert.deepEqual(out("affiche 3.14"), ["3.14"]);
+  assert.deepEqual(out("affiche 3.14"), ["3,14"]);
   assert.deepEqual(out("affiche «bonjour»"), ["bonjour"]);
 });
 
 test("nombres négatifs et virgule française", () => {
   assert.deepEqual(out("soit x -5\naffiche x"), ["-5"]);
-  assert.deepEqual(out("soit x 3,14\naffiche x"), ["3.14"]);
+  assert.deepEqual(out("soit x 3,14\naffiche x"), ["3,14"]);
   assert.deepEqual(lexer("set x -5").filter((t) => t.type !== "EOF").map((t) => t.value), [
     "set",
     "x",
@@ -242,6 +242,97 @@ test("premier et dernier", () => {
   const empty = runProgram("affiche premier liste");
   assert.ok(empty.error);
   assert.match(empty.error.message, /liste qui n'est pas vide/);
+});
+
+test("fiche champ pose_champ", () => {
+  assert.deepEqual(
+    out("soit j fiche nom «Léa» score 12\naffiche champ j nom\npose_champ j score 20\naffiche champ j score"),
+    ["Léa", "20"],
+  );
+});
+
+test("pose_element et copie", () => {
+  assert.deepEqual(
+    out("soit n liste 1 2 3\nsoit c copie n\npose_element n 2 9\naffiche element n 2\naffiche element c 2"),
+    ["9", "2"],
+  );
+});
+
+test("texte contient coupe remplace", () => {
+  assert.deepEqual(
+    out("affiche majuscule «t4c2»\naffiche contient «bonjour» «bon»\naffiche coupe «bonjour» 1 3\naffiche remplace «bonjour» «bon» «hey»"),
+    ["T4C2", "vrai", "bon", "heyjour"],
+  );
+});
+
+test("rien et conversions", () => {
+  assert.deepEqual(out("affiche rien\naffiche en_nombre «3,14»\naffiche est_vide liste"), ["rien", "3,14", "vrai"]);
+});
+
+test("parenthèses de groupement", () => {
+  assert.deepEqual(out("affiche ajoute (multiplie 2 3) 4"), ["10"]);
+});
+
+test("et court-circuit", () => {
+  assert.deepEqual(
+    out(`fonc boom x
+  affiche «boom»
+  retourne vrai
+fin
+si et faux boom 1 alors
+  affiche «non»
+fin
+affiche «ok»`),
+    ["ok"],
+  );
+});
+
+test("selon", () => {
+  assert.deepEqual(
+    out(`selon «lundi»
+  cas «lundi»
+    affiche «début»
+  sinon
+    affiche «autre»
+fin`),
+    ["début"],
+  );
+});
+
+test("fixe et i ne fuit plus", () => {
+  const r = runProgram("fixe n 3\npour i de 1 a n\n  affiche i\nfin\naffiche i");
+  assert.ok(r.error);
+  assert.match(r.error.message, /i/);
+  const frozen = runProgram("fixe n 3\nsoit n 4");
+  assert.ok(frozen.error);
+  assert.match(frozen.error.message, /fixe/);
+});
+
+test("essaie attrape", () => {
+  assert.deepEqual(
+    out("essaie\n  affiche divise 1 0\nattrape e\n  affiche «piégé»\nfin"),
+    ["piégé"],
+  );
+});
+
+test("importe maths", () => {
+  const r = runProgram("importe maths\naffiche arrondis multiplie pi 100");
+  assert.equal(r.ok, true);
+  assert.equal(r.output[0], "314");
+  assert.deepEqual(out("importe maths\naffiche plancher 3,7"), ["3"]);
+});
+
+test("fichiers relatifs", () => {
+  const fs = require("fs");
+  const name = "_t4c2_tmp_test.txt";
+  try {
+    assert.deepEqual(
+      out(`importe fichiers\necris_fichier «${name}» «salut»\naffiche lis_fichier «${name}»`),
+      ["salut"],
+    );
+  } finally {
+    try { fs.unlinkSync(name); } catch { /* ignore */ }
+  }
 });
 
 test("mission bonjour", () => {

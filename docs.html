@@ -23,7 +23,7 @@
       </div>
     </nav>
     <h1>Référence</h1>
-    <p>Les mots-clés ignorent les majuscules. <code>3,14</code> est un nombre. <code>«texte»</code> et <code>"texte"</code> sont du texte. Les listes commencent à 1. Commentaires : <code>//</code> ou <code>#</code>.</p>
+    <p>Les mots-clés ignorent les majuscules. Les noms les gardent. <code>3,14</code> s’affiche <code>3,14</code>. Les listes commencent à 1. Les parenthèses groupent seulement. Commentaires : <code>//</code> ou <code>#</code>.</p>
 
     <h2>Afficher et retenir</h2>
     <pre>affiche «Bonjour»
@@ -65,7 +65,7 @@ pour chaque note dans notes
 fin</pre>
     <p><code>interrompre</code> sort. <code>continuer</code> saute un tour.</p>
 
-    <h2>Fonctions, listes, tortue</h2>
+    <h2>Fonctions, listes, fiches</h2>
     <pre>fonc double x
   retourne multiplie x 2
 fin
@@ -73,19 +73,53 @@ affiche double 21
 
 soit notes liste 12 15 18
 affiche premier notes
-affiche dernier notes
-affiche element notes 2
+pose_element notes 2 20
 
+soit joueur fiche nom «Léa» score 12
+affiche champ joueur nom
+pose_champ joueur score 20</pre>
+
+    <h2>Texte, selon, erreurs</h2>
+    <pre>affiche majuscule «t4c2»
+affiche contient «bonjour» «bon»
+affiche coupe «bonjour» 1 3
+affiche ajoute (multiplie 2 3) 4
+
+selon jour
+  cas «lundi»
+    affiche «début»
+  sinon
+    affiche «autre»
+fin
+
+essaie
+  affiche divise 1 0
+attrape e
+  affiche e
+fin</pre>
+    <p><code>rien</code> <code>en_nombre</code> <code>en_texte</code> <code>est_vide</code> <code>copie</code> <code>fixe</code></p>
+
+    <h2>Modules et tortue</h2>
+    <pre>importe maths
+affiche sinus pi
+
+importe temps
+affiche maintenant
+
+couleur «bleu»
+aller_a 0 0
 repete 4
   avance 80
   tourne 90
-fin</pre>
+fin
+remplis</pre>
+    <p>Fichiers, dans le terminal seulement : <code>importe fichiers</code> puis <code>lis_fichier</code> / <code>ecris_fichier</code> (chemin relatif).</p>
 
     <h2>Classe</h2>
     <p>Séance imprimable : <a href="fiche.html">fiche prof 45 min</a>. Playground intégré : <code>t4c2_web.html?embed=1</code>.</p>
 
     <footer class="brand-foot">
-      <span>T4C2 1.3 · même moteur partout</span>
+      <span>T4C2 1.4 · même moteur partout</span>
       <a href="t4c2_web.html">Ouvrir le playground</a>
     </footer>
   </div>

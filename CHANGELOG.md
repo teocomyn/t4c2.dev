@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 — 2026-09-12
+
+- Données : `fiche`, `champ`, `pose_champ`, `pose_element`, `copie`, `rien`.
+- Texte : `contient`, `coupe`, `remplace`, `majuscule`, `minuscule`, `en_nombre`, `en_texte`, `est_vide`.
+- Langage : `(…)`, `selon`, `fixe`, `essaie` / `attrape`, `et` / `ou` court-circuit, portée de bloc, virgule en sortie.
+- Modules : `importe maths` (`pi`, `sinus`…), `importe temps`, `importe fichiers` (CLI, chemin relatif).
+- Tortue : `couleur`, `aller_a`, `remplis`.
+
 ## 1.3.0 — 2026-09-12
 
 - Langage : `premier` et `dernier` sur une liste.
