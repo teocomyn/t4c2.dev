@@ -79,7 +79,7 @@
     io.observe(el);
   });
 
-  const starter = "affiche «Bonjour T4C2»\nsoit age 12\naffiche age";
+  const starter = "affiche «Bonjour T4C2»\nsoit message «Le français suffit»\naffiche message";
   if (!reduced && code.value === starter) {
     const text = starter;
     let i = 0;

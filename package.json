@@ -9,8 +9,8 @@
   "bugs": {
     "url": "https://github.com/teocomyn/t4c2.dev/issues"
   },
-  "description": "Langage de programmation minimaliste, créatif et pédagogique en français.",
-  "keywords": ["t4c2", "francais", "education", "interpreter"],
+  "description": "Langage de programmation en français.",
+  "keywords": ["t4c2", "francais", "language", "interpreter"],
   "license": "MIT",
   "author": "Teo Comyn",
   "type": "commonjs",

@@ -1,8 +1,8 @@
 # T4C2
 
-**Le langage de programmation minimaliste, créatif et pédagogique en français.**
+**Le langage de programmation en français.**
 
-T4C2 sert à apprendre à programmer **en français**, à partir de 10 ans. Plus textuel que Scratch, plus français que Python.
+T4C2 est un vrai langage : tu écris **en français**, ça tourne tout de suite. Plus lisible que Python. Plus textuel que Scratch.
 
 Version **1.3.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
 

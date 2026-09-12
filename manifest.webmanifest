@@ -1,7 +1,7 @@
 {
   "name": "T4C2",
   "short_name": "T4C2",
-  "description": "Programmer en français",
+  "description": "Le langage en français",
   "start_url": "./t4c2_web.html",
   "display": "standalone",
   "background_color": "#f4efe6",
