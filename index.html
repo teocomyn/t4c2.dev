@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T4C2 — Programmer en français</title>
+  <meta name="description" content="T4C2 est un langage pour apprendre à coder en français, à partir de 10 ans. Plus textuel que Scratch, plus français que Python.">
+  <meta property="og:title" content="T4C2 — Programmer en français">
+  <meta property="og:description" content="Un langage scolaire : affiche, soit, si, pour. Essaie dans le navigateur.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#f4efe6">
+  <style>
+    :root { --bg:#f4efe6; --paper:#fffdf8; --ink:#1f1b16; --muted:#6b6258; --line:#e4d9c8; --accent:#0f6b63; --mono: ui-monospace, Menlo, Consolas, monospace; --sans: ui-sans-serif, "Segoe UI", system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--sans); background: var(--bg); color: var(--ink); line-height: 1.5; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 64px; }
+    nav { display: flex; gap: 16px; font-size: 0.9rem; margin-bottom: 48px; }
+    nav a { color: var(--muted); text-decoration: none; }
+    nav a:hover, nav a[aria-current] { color: var(--ink); }
+    h1 { font-size: clamp(2rem, 6vw, 3.2rem); letter-spacing: 0.06em; margin: 0 0 12px; }
+    .lead { font-size: 1.15rem; color: var(--muted); max-width: 34em; }
+    .cta { display: flex; gap: 10px; flex-wrap: wrap; margin: 28px 0 40px; }
+    .btn { display: inline-block; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+    .btn-p { background: var(--accent); color: #fff; }
+    .btn-g { background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
+    pre { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; overflow: auto; font: 14px/1.6 var(--mono); }
+    h2 { font-size: 1.05rem; margin: 36px 0 10px; }
+    ul { color: var(--muted); padding-left: 1.2em; }
+    footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a href="index.html" aria-current="page">Accueil</a>
+      <a href="t4c2_web.html">Playground</a>
+      <a href="docs.html">Référence</a>
+      <a href="https://github.com/teocomyn/t4c2.dev">GitHub</a>
+    </nav>
+    <h1>T4C2</h1>
+    <p class="lead">Un langage pour apprendre à programmer en français. Tu écris comme tu parles. L’ordinateur répond tout de suite.</p>
+    <div class="cta">
+      <a class="btn btn-p" href="t4c2_web.html">Ouvrir le playground</a>
+      <a class="btn btn-g" href="docs.html">Lire la référence</a>
+    </div>
+    <pre>affiche «Bonjour T4C2»
+soit age 12
+si plus_grand_ou_egal age 10 alors
+  affiche «Tu peux commencer»
+fin</pre>
+    <h2>Pourquoi T4C2</h2>
+    <ul>
+      <li>Mots-clés en français : <code>affiche</code>, <code>soit</code>, <code>si</code>, <code>pour</code>.</li>
+      <li><code>Affiche</code>, <code>3,14</code> et <code>«bonjour»</code> marchent — comme à l’école.</li>
+      <li>Plus textuel que Scratch, plus français que Python.</li>
+      <li>Rien à installer : le playground tourne dans le navigateur.</li>
+    </ul>
+    <h2>En ligne de commande</h2>
+    <pre>node t4c2.js
+node t4c2.js exemples/bonjour.t4c2</pre>
+    <footer>T4C2 1.1 — MIT · Teo Comyn · clarté, créativité, accessibilité.</footer>
+  </div>
+</body>
+</html>

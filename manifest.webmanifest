@@ -1,0 +1,17 @@
+{
+  "name": "T4C2",
+  "short_name": "T4C2",
+  "description": "Programmer en français",
+  "start_url": "./t4c2_web.html",
+  "display": "standalone",
+  "background_color": "#f4efe6",
+  "theme_color": "#0f6b63",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

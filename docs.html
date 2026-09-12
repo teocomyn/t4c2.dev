@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Référence — T4C2</title>
+  <meta name="description" content="Référence du langage T4C2 : afficher, calculer, décider, répéter, fonctions, listes, tortue.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root { --bg:#f4efe6; --paper:#fffdf8; --ink:#1f1b16; --muted:#6b6258; --line:#e4d9c8; --accent:#0f6b63; --mono: ui-monospace, Menlo, Consolas, monospace; --sans: ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; font-family: var(--sans); background: var(--bg); color: var(--ink); line-height: 1.5; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 64px; }
+    nav { display: flex; gap: 16px; font-size: 0.9rem; margin-bottom: 32px; }
+    nav a { color: var(--muted); text-decoration: none; }
+    nav a[aria-current], nav a:hover { color: var(--ink); }
+    h1 { font-size: 1.8rem; margin: 0 0 8px; }
+    h2 { font-size: 1.1rem; margin: 32px 0 8px; }
+    p, li { color: var(--muted); }
+    code, pre { font-family: var(--mono); }
+    pre { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a href="index.html">Accueil</a>
+      <a href="t4c2_web.html">Playground</a>
+      <a href="docs.html" aria-current="page">Référence</a>
+    </nav>
+    <h1>Référence T4C2</h1>
+    <p>Les mots-clés ignorent les majuscules. <code>3,14</code> est un nombre. <code>«texte»</code> et <code>"texte"</code> sont du texte. Les listes commencent à 1. Commentaires : <code>//</code> ou <code>#</code>.</p>
+
+    <h2>Afficher et retenir</h2>
+    <pre>affiche «Bonjour»
+affiche 1
+soit age 12
+demande prenom «Comment tu t'appelles ?»
+aide</pre>
+
+    <h2>Calculer</h2>
+    <table>
+      <tr><th>Mot</th><th>Rôle</th></tr>
+      <tr><td><code>ajoute soustrait multiplie divise modulo</code></td><td>Quatre opérations + reste</td></tr>
+      <tr><td><code>puissance racine arrondis</code></td><td>Collège</td></tr>
+      <tr><td><code>aleatoire 6</code></td><td>Dé de 1 à 6</td></tr>
+    </table>
+
+    <h2>Décider</h2>
+    <pre>si plus_grand_ou_egal points 10 alors
+  affiche «Réussi»
+sinon_si egal points 0 alors
+  affiche «À côté»
+sinon
+  affiche «Encore»
+fin</pre>
+    <p><code>egal different plus_grand plus_petit plus_grand_ou_egal plus_petit_ou_egal et ou non vrai faux</code></p>
+
+    <h2>Répéter</h2>
+    <pre>pour i de 1 a 10
+  affiche i
+fin
+
+repete 5
+  affiche «Hey»
+fin
+
+tant_que plus_petit n 10 faire
+  soit n ajoute n 1
+fin</pre>
+    <p><code>interrompre</code> sort. <code>continuer</code> saute un tour. Limite : 10 000 tours ou 200 ms.</p>
+
+    <h2>Fonctions, listes, tortue</h2>
+    <pre>fonc double x
+  retourne multiplie x 2
+fin
+affiche double 21
+
+soit notes liste 12 15 18
+affiche element notes 2
+
+repete 4
+  avance 80
+  tourne 90
+fin</pre>
+    <p>Une fonction se déclare avant de s’en servir.</p>
+
+    <h2>Fichiers</h2>
+    <pre>node t4c2.js
+node t4c2.js programme.t4c2
+node t4c2.js --fmt programme.t4c2
+npm test</pre>
+  </div>
+</body>
+</html>

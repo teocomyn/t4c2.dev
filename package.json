@@ -1,0 +1,36 @@
+{
+  "name": "t4c2",
+  "version": "1.1.0",
+  "homepage": "https://github.com/teocomyn/t4c2.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/teocomyn/t4c2.dev.git"
+  },
+  "bugs": {
+    "url": "https://github.com/teocomyn/t4c2.dev/issues"
+  },
+  "description": "Langage de programmation minimaliste, créatif et pédagogique en français.",
+  "keywords": ["t4c2", "francais", "education", "interpreter"],
+  "license": "MIT",
+  "author": "Teo Comyn",
+  "type": "commonjs",
+  "main": "./t4c2.js",
+  "bin": {
+    "t4c2": "./t4c2.js"
+  },
+  "files": [
+    "t4c2.js",
+    "t4c2_web.html",
+    "README.md",
+    "LICENSE",
+    "exemples"
+  ],
+  "scripts": {
+    "test": "node --test t4c2.test.js",
+    "start": "node t4c2.js",
+    "fmt": "node t4c2.js --fmt"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

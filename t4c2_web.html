@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playground — T4C2</title>
+  <meta name="description" content="Écris du T4C2 dans le navigateur : affiche, soit, si, pour. Sortie et mémoire en direct.">
+  <meta property="og:title" content="Playground T4C2">
+  <meta property="og:description" content="Programmer en français, tout de suite.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#f4efe6">
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --paper: #fffdf8;
+      --ink: #1f1b16;
+      --muted: #6b6258;
+      --line: #e4d9c8;
+      --accent: #0f6b63;
+      --accent-ink: #fff;
+      --warn: #9a4b12;
+      --err: #9b1c1c;
+      --ok: #0f6b63;
+      --hl-key: #9a4b12;
+      --hl-ctrl: #6b3fa0;
+      --hl-str: #0f6b63;
+      --hl-num: #1d4e89;
+      --hl-com: #8a8074;
+      --gutter: #c4b8a8;
+      --mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+      --sans: ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+    }
+    [data-theme="dark"] {
+      --bg: #1c1917;
+      --paper: #292524;
+      --ink: #f5f0e8;
+      --muted: #a8a29e;
+      --line: #44403c;
+      --accent: #2dd4bf;
+      --accent-ink: #123;
+      --warn: #fb923c;
+      --err: #f87171;
+      --ok: #2dd4bf;
+      --hl-key: #fb923c;
+      --hl-ctrl: #c4b5fd;
+      --hl-str: #5eead4;
+      --hl-num: #7dd3fc;
+      --hl-com: #78716c;
+      --gutter: #78716c;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.45;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; scroll-behavior: auto !important; }
+    }
+    .app { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; display: flex; flex-direction: column; gap: 16px; min-height: 100vh; }
+    .embed .top, .embed .ref, .embed footer { display: none !important; }
+    .top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    h1 { margin: 0; font-size: 1.4rem; letter-spacing: 0.04em; }
+    h1 span { display: block; font-size: 0.85rem; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button, select, .file-btn {
+      font: 600 0.85rem/1 var(--sans);
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--ink);
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button:hover, select:hover { border-color: var(--muted); }
+    .hint { font-size: 0.75rem; color: var(--muted); margin-left: 4px; font-weight: 500; }
+    .grid { display: grid; grid-template-columns: 1.3fr 0.9fr; gap: 16px; min-height: 0; flex: 1; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; min-height: 280px; overflow: hidden; }
+    .card-h { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--err); }
+    .editor-wrap { display: grid; grid-template-columns: 2.4em 1fr; flex: 1; min-height: 320px; }
+    .gutter {
+      padding: 14px 6px;
+      text-align: right;
+      color: var(--gutter);
+      font: 14px/1.6 var(--mono);
+      user-select: none;
+      white-space: pre;
+      background: color-mix(in srgb, var(--line) 35%, var(--paper));
+      overflow: hidden;
+    }
+    .editor-area { position: relative; min-width: 0; }
+    .hl, #code {
+      position: absolute; inset: 0;
+      margin: 0; padding: 14px;
+      font: 14px/1.6 var(--mono);
+      white-space: pre; overflow: auto; tab-size: 2;
+      border: 0;
+    }
+    .hl { color: var(--ink); pointer-events: none; }
+    #code { background: transparent; color: transparent; caret-color: var(--ink); resize: none; z-index: 1; }
+    .hl-keyword { color: var(--hl-key); }
+    .hl-control { color: var(--hl-ctrl); font-weight: 600; }
+    .hl-string { color: var(--hl-str); }
+    .hl-number { color: var(--hl-num); }
+    .hl-comment { color: var(--hl-com); font-style: italic; }
+    .err-line { background: color-mix(in srgb, var(--err) 14%, transparent); }
+    .out { flex: 1; padding: 12px 14px; font: 14px/1.6 var(--mono); overflow: auto; min-height: 120px; }
+    .out-line::before { content: "→ "; color: var(--muted); }
+    .out-err { color: var(--err); }
+    .out-empty, .out-warn { color: var(--muted); }
+    .out-warn { color: var(--warn); margin-top: 8px; }
+    .side { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+    .mem { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; }
+    .kv { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: 13px/1.4 var(--mono); }
+    .kv b { color: var(--muted); font-weight: 500; }
+    #turtle-wrap { display: none; padding: 8px; }
+    #turtle { width: 100%; height: 180px; background: var(--bg); border-radius: 8px; }
+    .ac {
+      position: absolute; z-index: 5; background: var(--paper); border: 1px solid var(--line);
+      border-radius: 8px; max-height: 180px; overflow: auto; min-width: 160px; display: none;
+    }
+    .ac button { display: block; width: 100%; text-align: left; border: 0; border-radius: 0; font: 13px var(--mono); }
+    .ref { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+    .ref h2 { margin: 0 0 12px; font-size: 1rem; }
+    .ref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .ref-card h3 { margin: 0 0 8px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--warn); }
+    .ref-card code { font-family: var(--mono); cursor: pointer; }
+    .ref-card p { margin: 0 0 6px; font-size: 0.85rem; color: var(--muted); }
+    .nav { display: flex; gap: 14px; font-size: 0.85rem; }
+    .nav a { color: var(--muted); text-decoration: none; }
+    .nav a:hover, .nav a[aria-current] { color: var(--ink); }
+    footer { color: var(--muted); font-size: 0.8rem; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    @media print {
+      .actions, .ac, footer { display: none; }
+      body { background: #fff; color: #000; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="top">
+      <div>
+        <nav class="nav">
+          <a href="index.html">Accueil</a>
+          <a href="t4c2_web.html" aria-current="page">Playground</a>
+          <a href="docs.html">Référence</a>
+        </nav>
+        <h1>T4C2 <span>Un langage pour apprendre à programmer en français, à partir de 10 ans.</span></h1>
+      </div>
+      <div class="actions">
+        <button class="primary" id="btn-run" type="button">Exécuter <span class="hint">⌘↵</span></button>
+        <button id="btn-step" type="button">Pas à pas</button>
+        <button id="btn-fmt" type="button">Formater</button>
+        <button id="btn-clear" type="button">Effacer la sortie</button>
+        <button id="btn-open" type="button">Ouvrir…</button>
+        <button id="btn-save" type="button">Télécharger</button>
+        <input id="file-open" type="file" accept=".t4c2,.txt,text/plain" hidden>
+        <select id="missions" aria-label="Missions">
+          <option value="">Charger une mission…</option>
+          <option value="hello">1. Dire bonjour</option>
+          <option value="variables">2. Garder une valeur</option>
+          <option value="conditions">3. Décider</option>
+          <option value="boucles">4. Compter</option>
+          <option value="fizzbuzz">5. FizzBuzz</option>
+          <option value="fibonacci">Fibonacci</option>
+          <option value="fonctions">Fonction</option>
+          <option value="listes">Liste</option>
+          <option value="tortue">Tortue</option>
+        </select>
+        <button id="btn-theme" type="button">Thème clair</button>
+        <button id="btn-share" type="button">Copier le lien</button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="card">
+        <div class="card-h"><span>Éditeur</span><span id="cursor">L1 C1</span></div>
+        <div class="editor-wrap">
+          <div class="gutter" id="gutter">1</div>
+          <div class="editor-area">
+            <pre class="hl" id="hl" aria-hidden="true"></pre>
+            <textarea id="code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Code T4C2">// Tape du français, puis Exécuter.
+affiche «Bonjour T4C2»
+affiche 1
+soit x 3,14
+affiche x
+</textarea>
+            <div class="ac" id="ac" role="listbox"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="side">
+        <section class="card">
+          <div class="card-h"><span>Sortie</span><span id="status" class="status"></span></div>
+          <div class="out" id="out"><div class="out-empty">Tape <code>affiche «bonjour»</code> puis Exécuter.</div></div>
+          <div id="turtle-wrap"><canvas id="turtle" width="520" height="180" aria-label="Dessin de la tortue"></canvas></div>
+        </section>
+        <section class="card" style="min-height: 140px;">
+          <div class="card-h"><span>Mémoire</span></div>
+          <div class="mem" id="mem"><span class="out-empty">Rien en mémoire pour l’instant.</span></div>
+        </section>
+      </div>
+    </main>
+
+    <section class="ref" id="ref">
+      <h2>Référence</h2>
+      <div class="ref-grid">
+        <div class="ref-card">
+          <h3>Afficher</h3>
+          <p><code data-insert="affiche «bonjour»">affiche «texte»</code> — écrit une ligne</p>
+          <p><code data-insert="affiche 1">affiche 1</code> — un nombre marche</p>
+        </div>
+        <div class="ref-card">
+          <h3>Mémoire</h3>
+          <p><code data-insert="soit age 12">soit nom valeur</code> — garder une valeur</p>
+          <p><code>result</code> — dernier calcul</p>
+          <p><code data-insert="demande prenom «Comment tu t'appelles ?»">demande nom «question»</code></p>
+        </div>
+        <div class="ref-card">
+          <h3>Calculer</h3>
+          <p><code>ajoute</code> <code>soustrait</code> <code>multiplie</code> <code>divise</code> <code>modulo</code></p>
+          <p><code>puissance</code> <code>racine</code> <code>arrondis</code> <code>aleatoire 6</code></p>
+        </div>
+        <div class="ref-card">
+          <h3>Comparer</h3>
+          <p><code>egal</code> <code>different</code></p>
+          <p><code>plus_grand</code> <code>plus_petit</code></p>
+          <p><code>plus_grand_ou_egal</code> <code>plus_petit_ou_egal</code></p>
+          <p><code>et</code> <code>ou</code> <code>non</code> <code>vrai</code> <code>faux</code></p>
+        </div>
+        <div class="ref-card">
+          <h3>Décider / répéter</h3>
+          <p><code>si … alors … sinon_si … sinon … fin</code></p>
+          <p><code>repete 5 … fin</code></p>
+          <p><code>tant_que … faire … fin</code></p>
+          <p><code>pour i de 1 a 10 … fin</code></p>
+        </div>
+        <div class="ref-card">
+          <h3>Aller plus loin</h3>
+          <p><code>fonc double x … retourne … fin</code></p>
+          <p><code>liste 1 2 3</code> <code>pousse</code> <code>element</code> <code>taille</code></p>
+          <p><code>avance 50</code> <code>tourne 90</code> <code>leve</code> <code>pose</code></p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <span>T4C2 1.1 — clarté, créativité, accessibilité. Par Teo Comyn.</span>
+      <span>Les listes commencent à 1. Les mots-clés ignorent les majuscules. 3,14 est un nombre.</span>
+    </footer>
+  </div>
+
+  <script src="t4c2.js"></script>
+  <script>
+    const T = window.T4C2;
+    const codeEl = document.getElementById("code");
+    const hl = document.getElementById("hl");
+    const gutter = document.getElementById("gutter");
+    const outEl = document.getElementById("out");
+    const memEl = document.getElementById("mem");
+    const statusEl = document.getElementById("status");
+    const missions = document.getElementById("missions");
+    const themeBtn = document.getElementById("btn-theme");
+    const ac = document.getElementById("ac");
+    const turtleWrap = document.getElementById("turtle-wrap");
+    const turtle = document.getElementById("turtle");
+    const cursorEl = document.getElementById("cursor");
+
+    let baseline = codeEl.value;
+    let stepper = null;
+    let highlightTimer = 0;
+
+    function params() { return new URLSearchParams(location.search); }
+    function b64e(s) {
+      return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+    function b64d(s) {
+      s = s.replace(/-/g, "+").replace(/_/g, "/");
+      while (s.length % 4) s += "=";
+      return decodeURIComponent(escape(atob(s)));
+    }
+
+    function applyTheme(name) {
+      document.documentElement.dataset.theme = name;
+      themeBtn.textContent = name === "dark" ? "Thème clair" : "Thème sombre";
+      localStorage.setItem("t4c2-theme", name);
+    }
+
+    function lineCount() { return codeEl.value.split("\n").length; }
+    function updateGutter(errLine) {
+      const n = lineCount();
+      gutter.innerHTML = Array.from({ length: n }, (_, i) => {
+        const k = i + 1;
+        return errLine === k ? `<span class="err-line">${k}</span>` : `${k}`;
+      }).join("\n");
+    }
+    function updateHighlight() {
+      hl.innerHTML = T.highlightHtml(codeEl.value);
+      updateGutter();
+      const lines = codeEl.value.slice(0, codeEl.selectionStart).split("\n");
+      cursorEl.textContent = `L${lines.length} C${lines[lines.length - 1].length + 1}`;
+    }
+    function scheduleHighlight() {
+      clearTimeout(highlightTimer);
+      highlightTimer = setTimeout(updateHighlight, 40);
+    }
+
+    function showOut(lines, empty) {
+      if (!lines.length) {
+        outEl.innerHTML = `<div class="out-empty">${empty || "Rien à afficher. Essaie affiche 1"}</div>`;
+        return;
+      }
+      outEl.innerHTML = "";
+      lines.forEach((l) => {
+        const div = document.createElement("div");
+        div.className = l.error ? "out-err" : "out-line";
+        div.textContent = l.text;
+        outEl.appendChild(div);
+      });
+    }
+
+    function showMem(vars) {
+      const keys = Object.keys(vars || {}).sort();
+      if (!keys.length) {
+        memEl.innerHTML = '<span class="out-empty">Rien en mémoire pour l’instant.</span>';
+        return;
+      }
+      memEl.innerHTML = keys.map((k) =>
+        `<span class="kv"><b>${k}</b> ${escapeText(T.formatValue(vars[k]))}</span>`
+      ).join("");
+    }
+    function escapeText(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    }
+
+    function drawTurtle(t) {
+      if (!t || !t.path || !t.path.length) {
+        turtleWrap.style.display = "none";
+        return;
+      }
+      turtleWrap.style.display = "block";
+      const ctx = turtle.getContext("2d");
+      const w = turtle.width, h = turtle.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+      ctx.lineWidth = 2;
+      const ox = w / 2, oy = h / 2;
+      t.path.forEach((seg) => {
+        ctx.beginPath();
+        ctx.moveTo(ox + seg.x1, oy + seg.y1);
+        ctx.lineTo(ox + seg.x2, oy + seg.y2);
+        ctx.stroke();
+      });
+    }
+
+    function dirty() { return codeEl.value !== baseline; }
+
+    function runAll() {
+      stepper = null;
+      const t0 = performance.now();
+      const result = T.runProgram(codeEl.value);
+      const ms = (performance.now() - t0).toFixed(1);
+      renderResult(result, ms, true);
+    }
+
+    function renderResult(result, ms, finished) {
+      const lines = (result.lines || []).slice();
+      if (result.error) {
+        lines.push({ text: result.error.message, error: true });
+        statusEl.textContent = `Erreur · ${ms ? ms + " ms" : ""}`;
+        statusEl.className = "status err";
+        updateGutter(result.error.line);
+      } else if (finished) {
+        statusEl.textContent = `OK · ${ms} ms`;
+        statusEl.className = "status ok";
+        updateGutter();
+      } else {
+        statusEl.textContent = "Pas à pas";
+        statusEl.className = "status";
+      }
+      (result.warnings || []).forEach((w) => {
+        lines.push({ text: w.text, error: false });
+      });
+      showOut(lines, finished ? "Rien à afficher. Essaie affiche 1" : "Encore une étape…");
+      if (result.warnings && result.warnings.length && !result.error) {
+        const w = document.createElement("div");
+        w.className = "out-warn";
+        w.textContent = result.warnings.map((x) => x.text).join(" · ");
+        outEl.appendChild(w);
+      }
+      showMem(result.variables);
+      drawTurtle(result.turtle);
+    }
+
+    function startStep() {
+      try {
+        const ast = T.parser(T.lexer(codeEl.value));
+        stepper = T.createRuntime(ast);
+        const first = stepper.step();
+        renderResult({
+          lines: first.output,
+          variables: first.variables,
+          turtle: first.turtle,
+          warnings: first.warnings,
+          error: first.error,
+        }, "", first.done);
+        if (first.done) stepper = null;
+      } catch (err) {
+        renderResult({ lines: [], variables: {}, turtle: { path: [] }, warnings: [], error: err }, "", true);
+        stepper = null;
+      }
+    }
+
+    function loadMission(name) {
+      const src = T.EXAMPLES[name];
+      if (!src) return;
+      if (dirty() && !confirm("Remplacer le code actuel par cette mission ?")) {
+        missions.value = "";
+        return;
+      }
+      codeEl.value = src;
+      baseline = src;
+      updateHighlight();
+      showOut([], "Mission chargée. Appuie sur Exécuter.");
+      showMem({});
+      drawTurtle({ path: [] });
+      statusEl.textContent = "";
+      missions.value = "";
+      localStorage.setItem("t4c2-code", src);
+    }
+
+    function currentWord() {
+      const i = codeEl.selectionStart;
+      const left = codeEl.value.slice(0, i);
+      const m = left.match(/[A-Za-z_éèêëàâùûôîïüçÉÈÊËÀÂÙÛÔÎÏÜÇ][A-Za-z0-9_éèêëàâùûôîïüçÉÈÊËÀÂÙÛÔÎÏÜÇ]*$/);
+      return m ? m[0] : "";
+    }
+    function showAc() {
+      const w = currentWord().toLowerCase();
+      const items = T.T4C2_KEYWORDS.filter((k) => !w || k.startsWith(w)).slice(0, 10);
+      if (!items.length) { ac.style.display = "none"; return; }
+      ac.innerHTML = items.map((k) => `<button type="button" data-k="${k}">${k}</button>`).join("");
+      ac.style.display = "block";
+      ac.style.left = "16px";
+      ac.style.top = "16px";
+    }
+    function insertKw(k) {
+      const i = codeEl.selectionStart;
+      const left = codeEl.value.slice(0, i);
+      const right = codeEl.value.slice(i);
+      const w = currentWord();
+      codeEl.value = left.slice(0, left.length - w.length) + k + right;
+      codeEl.selectionStart = codeEl.selectionEnd = i - w.length + k.length;
+      ac.style.display = "none";
+      codeEl.focus();
+      updateHighlight();
+    }
+
+    function normalizePaste(text) {
+      return text.replace(/^\uFEFF/, "").replace(/\u00a0/g, " ").replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+    }
+
+    document.getElementById("btn-run").onclick = runAll;
+    document.getElementById("btn-step").onclick = () => { if (stepper) {
+      const s = stepper.step();
+      renderResult({ lines: s.output, variables: s.variables, turtle: s.turtle, warnings: s.warnings, error: s.error }, "", s.done);
+      if (s.done) stepper = null;
+    } else startStep(); };
+    document.getElementById("btn-fmt").onclick = () => {
+      codeEl.value = T.formatT4C2(codeEl.value);
+      updateHighlight();
+    };
+    document.getElementById("btn-clear").onclick = () => {
+      showOut([], "Sortie effacée.");
+      statusEl.textContent = "";
+      stepper = null;
+    };
+    document.getElementById("btn-save").onclick = () => {
+      const blob = new Blob([codeEl.value], { type: "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "programme.t4c2";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+    document.getElementById("btn-open").onclick = () => document.getElementById("file-open").click();
+    document.getElementById("file-open").onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (dirty() && !confirm("Remplacer le code actuel par ce fichier ?")) {
+        e.target.value = "";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        codeEl.value = normalizePaste(String(reader.result || ""));
+        baseline = codeEl.value;
+        updateHighlight();
+        localStorage.setItem("t4c2-code", codeEl.value);
+      };
+      reader.readAsText(file, "utf-8");
+      e.target.value = "";
+    };
+    document.getElementById("btn-share").onclick = async () => {
+      const url = `${location.origin}${location.pathname}?c=${b64e(codeEl.value)}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        statusEl.textContent = "Lien copié";
+        statusEl.className = "status ok";
+      } catch {
+        prompt("Copie ce lien :", url);
+      }
+    };
+    themeBtn.onclick = () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+    missions.onchange = () => loadMission(missions.value);
+
+    codeEl.addEventListener("input", () => {
+      scheduleHighlight();
+      localStorage.setItem("t4c2-code", codeEl.value);
+    });
+    codeEl.addEventListener("scroll", () => {
+      hl.scrollTop = codeEl.scrollTop;
+      hl.scrollLeft = codeEl.scrollLeft;
+      gutter.scrollTop = codeEl.scrollTop;
+    });
+    codeEl.addEventListener("click", updateHighlight);
+    codeEl.addEventListener("keyup", updateHighlight);
+    codeEl.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); runAll(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === " ") { e.preventDefault(); showAc(); }
+      if (e.key === "Escape") ac.style.display = "none";
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const s = codeEl.selectionStart, end = codeEl.selectionEnd;
+        codeEl.value = codeEl.value.slice(0, s) + "  " + codeEl.value.slice(end);
+        codeEl.selectionStart = codeEl.selectionEnd = s + 2;
+        updateHighlight();
+      }
+    });
+    codeEl.addEventListener("paste", (e) => {
+      const t = e.clipboardData.getData("text");
+      if (!t) return;
+      e.preventDefault();
+      const n = normalizePaste(t);
+      const s = codeEl.selectionStart, end = codeEl.selectionEnd;
+      codeEl.value = codeEl.value.slice(0, s) + n + codeEl.value.slice(end);
+      codeEl.selectionStart = codeEl.selectionEnd = s + n.length;
+      updateHighlight();
+    });
+    ac.addEventListener("click", (e) => {
+      if (e.target.dataset.k) insertKw(e.target.dataset.k);
+    });
+    document.querySelectorAll("[data-insert]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const s = codeEl.selectionStart;
+        const ins = el.getAttribute("data-insert") + "\n";
+        codeEl.value = codeEl.value.slice(0, s) + ins + codeEl.value.slice(s);
+        updateHighlight();
+        codeEl.focus();
+      });
+    });
+
+    const q = params();
+    if (q.get("embed") === "1") document.body.classList.add("embed");
+    const savedTheme = localStorage.getItem("t4c2-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    applyTheme(q.get("theme") || savedTheme);
+    if (q.get("c")) {
+      try { codeEl.value = b64d(q.get("c")); baseline = codeEl.value; } catch {}
+    } else if (localStorage.getItem("t4c2-code")) {
+      codeEl.value = localStorage.getItem("t4c2-code");
+      baseline = codeEl.value;
+    }
+    updateHighlight();
+  </script>
+</body>
+</html>

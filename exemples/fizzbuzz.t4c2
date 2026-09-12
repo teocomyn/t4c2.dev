@@ -1,0 +1,11 @@
+pour i de 1 a 15
+  si egal modulo i 15 0 alors
+    affiche «FizzBuzz»
+  sinon_si egal modulo i 3 0 alors
+    affiche «Fizz»
+  sinon_si egal modulo i 5 0 alors
+    affiche «Buzz»
+  sinon
+    affiche i
+  fin
+fin

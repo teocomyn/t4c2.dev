@@ -1,0 +1,23 @@
+// Démonstration T4C2 1.0
+affiche «Bienvenue dans T4C2 !»
+
+soit nom «Teo»
+soit age 17
+affiche nom
+affiche age
+
+soit x 15
+soit y 4
+affiche ajoute x y
+affiche soustrait x y
+
+si plus_grand age 17 alors
+  affiche «Majeur»
+sinon
+  affiche «Mineur»
+fin
+
+affiche «--- Compte à rebours ---»
+pour n de 5 a 1
+  affiche n
+fin

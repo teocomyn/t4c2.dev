@@ -1,0 +1,19 @@
+{
+  "name": "T4C2",
+  "scopeName": "source.t4c2",
+  "fileTypes": ["t4c2"],
+  "patterns": [
+    { "name": "comment.line.double-slash.t4c2", "match": "//.*$" },
+    { "name": "string.quoted.double.t4c2", "begin": "\"", "end": "\"", "patterns": [{ "match": "\\\\.", "name": "constant.character.escape.t4c2" }] },
+    { "name": "string.quoted.other.t4c2", "begin": "«", "end": "»" },
+    {
+      "name": "keyword.control.t4c2",
+      "match": "\\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|de|fonc|retourne|interrompre|continuer)\\b"
+    },
+    {
+      "name": "keyword.other.t4c2",
+      "match": "\\b(affiche|soit|set|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|pousse|retire|taille|element|avance|tourne|leve|pose|vrai|faux)\\b"
+    },
+    { "name": "constant.numeric.t4c2", "match": "-?\\d+([.,]\\d+)?" }
+  ]
+}
