@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 — 2026-09-12
+
+- Langage : `minimum`, `maximum`, `absolu`, `pour chaque x dans liste`.
+- `de` n’est plus réservé. Les fonctions peuvent être déclarées plus bas.
+- Formateur : garde `//` et `#`. REPL multi-lignes. Timeout 1000 ms.
+- Playground : missions corrigées, pas-à-pas sur la ligne, `demande` dans l’UI, erreur peinte.
+
 ## 1.1.0 — 2026-09-12
 
 - Site : accueil, référence, favicon, manifest, 404.

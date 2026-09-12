@@ -4,7 +4,7 @@
 
 T4C2 sert à apprendre à programmer **en français**, à partir de 10 ans. Plus textuel que Scratch, plus français que Python.
 
-Version **1.1.0**. Licence MIT. Site : [github.com/teocomyn/t4c2.dev](https://github.com/teocomyn/t4c2.dev).
+Version **1.2.0**. Licence MIT. Site : [github.com/teocomyn/t4c2.dev](https://github.com/teocomyn/t4c2.dev).
 
 ---
 
@@ -62,7 +62,8 @@ demande prenom «Comment tu t'appelles ?»
 ### Calculer
 
 `ajoute` `soustrait` `multiplie` `divise` `modulo` `puissance`  
-`racine` `arrondis` `aleatoire` (dé `aleatoire 6` → 1 à 6)
+`racine` `arrondis` `aleatoire` (dé `aleatoire 6` → 1 à 6)  
+`minimum` `maximum` `absolu`
 
 On peut imbriquer :
 
@@ -104,8 +105,10 @@ tant_que plus_petit n 10 faire
 fin
 ```
 
+`pour chaque note dans notes` parcourt une liste.
+
 `interrompre` et `continuer` sortent ou sautent un tour.  
-Limite : 10 000 tours ou 200 ms.
+Limite : 10 000 tours ou 1000 ms.
 
 ### Texte, listes, fonctions, tortue
 

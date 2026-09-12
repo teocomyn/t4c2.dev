@@ -186,3 +186,50 @@ test("aide", () => {
 test("longueur sur liste", () => {
   assert.deepEqual(out("affiche longueur liste 1 2 3"), ["3"]);
 });
+
+test("minimum maximum absolu", () => {
+  assert.deepEqual(out("affiche minimum 3 8"), ["3"]);
+  assert.deepEqual(out("affiche maximum liste 1 9 4"), ["9"]);
+  assert.deepEqual(out("affiche absolu -4"), ["4"]);
+});
+
+test("pour chaque", () => {
+  assert.deepEqual(
+    out("soit notes liste 12 15\npour chaque n dans notes\n  affiche n\nfin"),
+    ["12", "15"],
+  );
+});
+
+test("soit de n'est plus interdit", () => {
+  assert.deepEqual(out("soit de 1\naffiche de"), ["1"]);
+});
+
+test("fonction déclarée plus bas", () => {
+  assert.deepEqual(
+    out("affiche double 21\nfonc double x\n  retourne multiplie x 2\nfin"),
+    ["42"],
+  );
+});
+
+test("formateur garde les commentaires", () => {
+  const src = formatT4C2("// garde\nsi plus_grand 1 0 alors\naffiche 1\nfin");
+  assert.match(src, /\/\/ garde/);
+  assert.match(src, /  affiche 1/);
+});
+
+test("demande peut se mettre en pause", () => {
+  const r = runProgram('demande nom «Qui ?»\naffiche nom', { yieldAsk: true });
+  assert.equal(r.paused, true);
+  assert.equal(r.ask.question, "Qui ?");
+  r.runtime.answer("Teo");
+  const next = r.runtime.runAll();
+  assert.equal(next.ask, null);
+  assert.deepEqual(next.output.map((l) => l.text), ["Teo"]);
+});
+
+test("mission bonjour", () => {
+  const { checkMission } = require("./t4c2.js");
+  const r = runProgram("affiche «Bonjour T4C2»\naffiche 1");
+  const c = checkMission("hello", r);
+  assert.equal(c.ok, true);
+});

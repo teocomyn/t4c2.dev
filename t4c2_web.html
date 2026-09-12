@@ -119,12 +119,28 @@
     .hl-string { color: var(--hl-str); }
     .hl-number { color: var(--hl-num); }
     .hl-comment { color: var(--hl-com); font-style: italic; }
-    .err-line { background: color-mix(in srgb, var(--err) 14%, transparent); }
+    .err-line { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); }
+    .step-line { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--ink); }
+    .hl .line-err { background: color-mix(in srgb, var(--err) 16%, transparent); }
+    .hl .line-step { background: color-mix(in srgb, #2f6fed 18%, transparent); }
+    .kv.pulse { border-color: var(--accent); }
     .out { flex: 1; padding: 12px 14px; font: 14px/1.6 var(--mono); overflow: auto; min-height: 120px; }
     .out-line::before { content: "→ "; color: var(--muted); }
     .out-err { color: var(--err); }
     .out-empty, .out-warn { color: var(--muted); }
     .out-warn { color: var(--warn); margin-top: 8px; }
+    .ask-box { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+    .ask-box label { color: var(--ink); font: 600 0.9rem var(--sans); }
+    .ask-box input {
+      flex: 1; min-width: 140px; border: 1px solid var(--line); border-radius: 999px;
+      padding: 8px 12px; font: 14px var(--mono); background: var(--paper); color: var(--ink);
+    }
+    .mission-bar {
+      padding: 10px 14px; border-top: 1px solid var(--line); font-size: 0.88rem; color: var(--muted);
+      display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center;
+    }
+    .mission-bar.ok { color: var(--ok); }
+    .mission-bar.err { color: var(--warn); }
     .side { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
     .mem { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; }
     .kv { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: 13px/1.4 var(--mono); }
@@ -182,6 +198,7 @@
           <option value="fibonacci">Fibonacci</option>
           <option value="fonctions">Fonction</option>
           <option value="listes">Liste</option>
+          <option value="chaque">Pour chaque</option>
           <option value="tortue">Tortue</option>
         </select>
         <details class="more">
@@ -222,6 +239,7 @@ affiche x
         <section class="card">
           <div class="card-h"><span>Sortie</span><span id="status" class="status"></span></div>
           <div class="out" id="out"><div class="out-empty">Tape <code>affiche «bonjour»</code> puis Exécuter.</div></div>
+          <div class="mission-bar" id="mission-bar" hidden></div>
           <div id="turtle-wrap"><canvas id="turtle" width="520" height="180" aria-label="Dessin de la tortue"></canvas></div>
         </section>
         <section class="card" style="min-height: 140px;">
@@ -249,6 +267,7 @@ affiche x
           <h3>Calculer</h3>
           <p><code>ajoute</code> <code>soustrait</code> <code>multiplie</code> <code>divise</code> <code>modulo</code></p>
           <p><code>puissance</code> <code>racine</code> <code>arrondis</code> <code>aleatoire 6</code></p>
+          <p><code>minimum</code> <code>maximum</code> <code>absolu</code></p>
         </div>
         <div class="ref-card">
           <h3>Comparer</h3>
@@ -263,6 +282,7 @@ affiche x
           <p><code>repete 5 … fin</code></p>
           <p><code>tant_que … faire … fin</code></p>
           <p><code>pour i de 1 a 10 … fin</code></p>
+          <p><code>pour chaque note dans notes … fin</code></p>
         </div>
         <div class="ref-card">
           <h3>Aller plus loin</h3>
@@ -274,7 +294,7 @@ affiche x
     </section>
 
     <footer>
-      <span>T4C2 1.1 — clarté, créativité, accessibilité. Par Teo Comyn.</span>
+      <span>T4C2 1.2 — clarté, créativité, accessibilité. Par Teo Comyn.</span>
       <span>Les listes commencent à 1. Les mots-clés ignorent les majuscules. 3,14 est un nombre.</span>
     </footer>
   </div>
@@ -297,7 +317,13 @@ affiche x
 
     let baseline = codeEl.value;
     let stepper = null;
+    let liveRt = null;
+    let currentMission = "";
+    let markErr = 0;
+    let markStep = 0;
+    let lastVars = {};
     let highlightTimer = 0;
+    const missionBar = document.getElementById("mission-bar");
 
     function params() { return new URLSearchParams(location.search); }
     function b64e(s) {
@@ -316,18 +342,33 @@ affiche x
     }
 
     function lineCount() { return codeEl.value.split("\n").length; }
-    function updateGutter(errLine) {
+    function updateGutter(errLine, stepLine) {
       const n = lineCount();
       gutter.innerHTML = Array.from({ length: n }, (_, i) => {
         const k = i + 1;
-        return errLine === k ? `<span class="err-line">${k}</span>` : `${k}`;
+        if (errLine === k) return `<span class="err-line">${k}</span>`;
+        if (stepLine === k) return `<span class="step-line">${k}</span>`;
+        return `${k}`;
       }).join("\n");
     }
     function updateHighlight() {
-      hl.innerHTML = T.highlightHtml(codeEl.value);
-      updateGutter();
+      const html = T.highlightHtml(codeEl.value);
+      const parts = html.split("\n");
+      hl.innerHTML = parts.map((line, i) => {
+        const n = i + 1;
+        const cls = n === markErr ? "line-err" : n === markStep ? "line-step" : "";
+        return cls ? `<span class="${cls}">${line || " "}</span>` : line;
+      }).join("\n");
+      updateGutter(markErr, markStep);
       const lines = codeEl.value.slice(0, codeEl.selectionStart).split("\n");
       cursorEl.textContent = `L${lines.length} C${lines[lines.length - 1].length + 1}`;
+      if (markErr || markStep) {
+        const row = (markErr || markStep) - 1;
+        const y = row * (14 * 1.6);
+        codeEl.scrollTop = Math.max(0, y - 40);
+        hl.scrollTop = codeEl.scrollTop;
+        gutter.scrollTop = codeEl.scrollTop;
+      }
     }
     function scheduleHighlight() {
       clearTimeout(highlightTimer);
@@ -352,11 +393,14 @@ affiche x
       const keys = Object.keys(vars || {}).sort();
       if (!keys.length) {
         memEl.innerHTML = '<span class="out-empty">Rien en mémoire pour l’instant.</span>';
+        lastVars = {};
         return;
       }
-      memEl.innerHTML = keys.map((k) =>
-        `<span class="kv"><b>${k}</b> ${escapeText(T.formatValue(vars[k]))}</span>`
-      ).join("");
+      memEl.innerHTML = keys.map((k) => {
+        const changed = lastVars[k] !== vars[k];
+        return `<span class="kv${changed ? " pulse" : ""}"><b>${k}</b> ${escapeText(T.formatValue(vars[k]))}</span>`;
+      }).join("");
+      lastVars = Object.assign({}, vars);
     }
     function escapeText(s) {
       return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -386,30 +430,32 @@ affiche x
 
     function runAll() {
       stepper = null;
+      liveRt = null;
       const t0 = performance.now();
-      const result = T.runProgram(codeEl.value, { maxMs: 1000 });
+      const result = T.runProgram(codeEl.value, { maxMs: 1000, yieldAsk: true });
       const ms = (performance.now() - t0).toFixed(1);
-      renderResult(result, ms, true);
+      if (result.ask) liveRt = result.runtime;
+      renderResult(result, ms, !result.ask);
     }
 
     function renderResult(result, ms, finished) {
       const lines = (result.lines || []).slice();
+      markErr = result.error && result.error.line ? result.error.line : 0;
+      markStep = !finished && result.node && result.node.line ? result.node.line : 0;
       if (result.error) {
         lines.push({ text: result.error.message, error: true });
         statusEl.textContent = `Erreur · ${ms ? ms + " ms" : ""}`;
         statusEl.className = "status err";
-        updateGutter(result.error.line);
+      } else if (result.ask) {
+        statusEl.textContent = "Question";
+        statusEl.className = "status";
       } else if (finished) {
         statusEl.textContent = `OK · ${ms} ms`;
         statusEl.className = "status ok";
-        updateGutter();
       } else {
         statusEl.textContent = "Pas à pas";
         statusEl.className = "status";
       }
-      (result.warnings || []).forEach((w) => {
-        lines.push({ text: w.text, error: false });
-      });
       showOut(lines, finished ? "Rien à afficher. Essaie affiche 1" : "Encore une étape…");
       if (result.warnings && result.warnings.length && !result.error) {
         const w = document.createElement("div");
@@ -417,14 +463,74 @@ affiche x
         w.textContent = result.warnings.map((x) => x.text).join(" · ");
         outEl.appendChild(w);
       }
+      if (result.ask) showAsk(result.ask);
       showMem(result.variables);
       drawTurtle(result.turtle);
+      updateHighlight();
+      if (finished && !result.error && !result.ask) scoreMission(result);
+      else if (currentMission && !result.ask) {
+        const spec = T.MISSIONS[currentMission];
+        if (spec) setMissionBar(spec.goal, "");
+      }
+    }
+
+    function showAsk(ask) {
+      const box = document.createElement("form");
+      box.className = "ask-box";
+      box.innerHTML = `<label>${escapeText(ask.question)}</label><input id="ask-in" type="text" autocomplete="off" /><button type="submit">OK</button>`;
+      outEl.appendChild(box);
+      const input = box.querySelector("input");
+      input.focus();
+      box.onsubmit = (e) => {
+        e.preventDefault();
+        if (!liveRt && !stepper) return;
+        const rt = liveRt || stepper;
+        rt.answer(input.value);
+        const next = rt.runAll();
+        if (next.ask) liveRt = rt;
+        else liveRt = null;
+        renderResult({
+          lines: next.output,
+          variables: next.variables,
+          turtle: next.turtle,
+          warnings: next.warnings,
+          error: next.error,
+          ask: next.ask,
+          node: next.node,
+        }, "", !next.ask);
+      };
+    }
+
+    function setMissionBar(text, kind, next) {
+      if (!missionBar) return;
+      missionBar.hidden = !text;
+      missionBar.className = "mission-bar" + (kind ? " " + kind : "");
+      missionBar.innerHTML = next
+        ? `<span>${escapeText(text)}</span><button type="button" id="btn-next">Mission suivante</button>`
+        : `<span>${escapeText(text)}</span>`;
+      const btn = document.getElementById("btn-next");
+      if (btn) btn.onclick = () => loadMission(next);
+    }
+
+    function scoreMission(result) {
+      if (!currentMission || !T.checkMission) return;
+      const output = result.output || (result.lines || []).map((l) => (typeof l === "string" ? l : l.text)).filter((t, i, arr) => {
+        const src = (result.lines || [])[i];
+        return !(src && src.error);
+      });
+      const check = T.checkMission(currentMission, {
+        output,
+        error: result.error,
+        turtle: result.turtle,
+      });
+      setMissionBar(check.message, check.ok ? "ok" : "err", check.ok ? check.next : "");
     }
 
     function startStep() {
       try {
         const ast = T.parser(T.lexer(codeEl.value));
-        stepper = T.createRuntime(ast);
+        stepper = T.createRuntime(ast, { yieldAsk: true, maxMs: 1000 });
+        liveRt = stepper;
         const first = stepper.step();
         renderResult({
           lines: first.output,
@@ -432,8 +538,10 @@ affiche x
           turtle: first.turtle,
           warnings: first.warnings,
           error: first.error,
-        }, "", first.done);
-        if (first.done) stepper = null;
+          ask: first.ask,
+          node: first.node,
+        }, "", first.done && !first.ask);
+        if (first.done && !first.ask) stepper = null;
       } catch (err) {
         renderResult({ lines: [], variables: {}, turtle: { path: [] }, warnings: [], error: err }, "", true);
         stepper = null;
@@ -447,15 +555,20 @@ affiche x
         missions.value = "";
         return;
       }
+      currentMission = name;
       codeEl.value = src;
       baseline = src;
+      markErr = 0;
+      markStep = 0;
       updateHighlight();
-      showOut([], "Mission chargée. Appuie sur Exécuter.");
+      const spec = T.MISSIONS[name];
+      showOut([], spec ? spec.goal + " Appuie sur Exécuter." : "Mission chargée. Appuie sur Exécuter.");
       showMem({});
       drawTurtle({ path: [] });
       statusEl.textContent = "";
-      missions.value = "";
+      setMissionBar(spec ? spec.goal : "", "");
       localStorage.setItem("t4c2-code", src);
+      localStorage.setItem("t4c2-mission", name);
     }
 
     function currentWord() {
@@ -470,8 +583,11 @@ affiche x
       if (!items.length) { ac.style.display = "none"; return; }
       ac.innerHTML = items.map((k) => `<button type="button" data-k="${k}">${k}</button>`).join("");
       ac.style.display = "block";
-      ac.style.left = "16px";
-      ac.style.top = "16px";
+      const before = codeEl.value.slice(0, codeEl.selectionStart).split("\n");
+      const row = before.length;
+      const col = before[before.length - 1].length;
+      ac.style.left = Math.min(14 + col * 8.4, codeEl.clientWidth - 180) + "px";
+      ac.style.top = Math.max(8, 14 + row * 22.4 - codeEl.scrollTop) + "px";
     }
     function insertKw(k) {
       const i = codeEl.selectionStart;
@@ -492,8 +608,8 @@ affiche x
     document.getElementById("btn-run").onclick = runAll;
     document.getElementById("btn-step").onclick = () => { if (stepper) {
       const s = stepper.step();
-      renderResult({ lines: s.output, variables: s.variables, turtle: s.turtle, warnings: s.warnings, error: s.error }, "", s.done);
-      if (s.done) stepper = null;
+      renderResult({ lines: s.output, variables: s.variables, turtle: s.turtle, warnings: s.warnings, error: s.error, ask: s.ask, node: s.node }, "", s.done && !s.ask);
+      if (s.done && !s.ask) stepper = null;
     } else startStep(); };
     document.getElementById("btn-fmt").onclick = () => {
       codeEl.value = T.formatT4C2(codeEl.value);
@@ -598,6 +714,7 @@ affiche x
     } else if (localStorage.getItem("t4c2-code")) {
       codeEl.value = localStorage.getItem("t4c2-code");
       baseline = codeEl.value;
+      currentMission = localStorage.getItem("t4c2-mission") || "";
     }
     updateHighlight();
   </script>

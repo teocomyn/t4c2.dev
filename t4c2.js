@@ -2,7 +2,7 @@
 // T4C2 — Langage de programmation en français
 // Un seul moteur : navigateur + Node. Pas d'effet de bord à l'import.
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 
 const STMT = new Set([
   "affiche", "soit", "set", "aide", "si", "alors", "sinon", "sinon_si", "fin",
@@ -18,13 +18,13 @@ const BINARY = new Set([
   "et", "ou", "concat", "element",
 ]);
 
-const UNARY = new Set(["non", "racine", "arrondis", "longueur", "taille"]);
+const UNARY = new Set(["non", "racine", "arrondis", "longueur", "taille", "absolu"]);
 
-const SPECIAL_EXPR = new Set(["aleatoire", "liste", "vrai", "faux"]);
+const SPECIAL_EXPR = new Set(["aleatoire", "liste", "vrai", "faux", "minimum", "maximum"]);
 
 const RESERVED = new Set([
   ...STMT, ...BINARY, ...UNARY, ...SPECIAL_EXPR,
-  "result", "de", "applique",
+  "result",
 ]);
 
 const T4C2_KEYWORDS = [...RESERVED].sort();
@@ -35,7 +35,7 @@ const T4C2_CONTROL = [
 
 const MAX_ITERATIONS = 10000;
 const MAX_OUTPUT = 500;
-const MAX_MS = 200;
+const MAX_MS = 1000;
 const MAX_DEPTH = 64;
 
 class T4C2Error extends Error {
@@ -257,8 +257,28 @@ function loc(tok) {
   return tok ? { line: tok.line, col: tok.col } : { line: 0, col: 0 };
 }
 
+function collectArities(tokens) {
+  const found = new Map();
+  for (let k = 0; k < tokens.length; k++) {
+    if (tokens[k].value === "fonc" && tokens[k + 1] && tokens[k + 1].type === "IDENT") {
+      const name = tokens[k + 1].value;
+      let n = 0;
+      let j = k + 2;
+      while (tokens[j] && tokens[j].type === "IDENT") {
+        n++;
+        j++;
+      }
+      found.set(name, n);
+    }
+  }
+  return found;
+}
+
 function parser(tokens, { functions } = {}) {
-  const arities = functions instanceof Map ? functions : new Map();
+  const arities = functions instanceof Map ? new Map(functions) : new Map();
+  collectArities(tokens).forEach((n, name) => {
+    if (!arities.has(name)) arities.set(name, n);
+  });
   let i = 0;
 
   const peek = () => tokens[i];
@@ -328,6 +348,12 @@ function parser(tokens, { functions } = {}) {
         if (isExprStart(peek())) args.push(parseExpression(depth + 1));
       }
       return { type: "call", op: "aleatoire", args, ...loc(t) };
+    }
+    if (t.value === "minimum" || t.value === "maximum") {
+      const op = next().value;
+      const args = [parseExpression(depth + 1)];
+      if (isExprStart(peek())) args.push(parseExpression(depth + 1));
+      return { type: "call", op, args, ...loc(t) };
     }
     if (UNARY.has(t.value)) {
       const op = next().value;
@@ -432,6 +458,19 @@ function parser(tokens, { functions } = {}) {
     }
     if (t.value === "pour") {
       next();
+      if (peek() && peek().value === "chaque") {
+        next();
+        const nameTok = peek();
+        if (!nameTok || nameTok.type !== "IDENT") {
+          fail("après pour chaque, j'attendais un nom. Essaie : pour chaque note dans notes", nameTok);
+        }
+        next();
+        expectValue("dans");
+        const list = parseExpression();
+        const body = parseBlock(["fin"]);
+        expectValue("fin");
+        return { type: "pour_chaque", name: nameTok.value, list, body, ...loc(t) };
+      }
       const nameTok = peek();
       if (!nameTok || nameTok.type !== "IDENT") {
         fail("après pour, j'attendais un nom. Essaie : pour i de 1 a 10", nameTok);
@@ -548,8 +587,10 @@ function defaultAsk(question) {
 
 function createRuntime(ast, options = {}) {
   const outputFn = typeof options.outputFn === "function" ? options.outputFn : null;
-  const ask = typeof options.ask === "function" ? options.ask : defaultAsk;
+  const yieldAsk = !!options.yieldAsk;
+  const ask = typeof options.ask === "function" ? options.ask : (yieldAsk ? null : defaultAsk);
   const random = typeof options.random === "function" ? options.random : Math.random;
+  let pendingAnswer;
   const maxMs = options.maxMs ?? MAX_MS;
   const maxIter = options.maxIterations ?? MAX_ITERATIONS;
   const maxOut = options.maxOutput ?? MAX_OUTPUT;
@@ -620,7 +661,7 @@ function createRuntime(ast, options = {}) {
       stopped = "boucle";
       throw new T4C2Error(`boucle trop longue (limite ${maxIter}). Ajoute une condition qui devient fausse.`);
     }
-    if (Date.now() - t0 > maxMs) {
+    if (iterations % 32 === 0 && Date.now() - t0 > maxMs) {
       stopped = "temps";
       throw new T4C2Error(`le programme a pris plus de ${maxMs} ms. Je l'ai arrêté pour ne pas figer l'écran.`);
     }
@@ -663,7 +704,11 @@ function createRuntime(ast, options = {}) {
       case "appel": {
         const fn = functions.get(expr.name);
         if (!fn) {
-          throw new T4C2Error(`la fonction « ${expr.name} » n'existe pas.`, expr.line, expr.col);
+          throw new T4C2Error(
+            `la fonction « ${expr.name} » n'existe pas. Déclare-la : fonc ${expr.name} … fin`,
+            expr.line,
+            expr.col,
+          );
         }
         const args = expr.args.map(evalExpr);
         const local = {};
@@ -707,6 +752,18 @@ function createRuntime(ast, options = {}) {
           return Math.sqrt(x);
         }
         if (op === "arrondis") return Math.round(num(args[0], op, expr));
+        if (op === "absolu") return Math.abs(num(args[0], op, expr));
+        if (op === "minimum" || op === "maximum") {
+          const pick = op === "minimum" ? Math.min : Math.max;
+          if (args.length === 1) {
+            if (!Array.isArray(args[0]) || !args[0].length) {
+              throw new T4C2Error(`${op} attend deux nombres, ou une liste.`, expr.line, expr.col);
+            }
+            args[0].forEach((v) => num(v, op, expr));
+            return pick(...args[0]);
+          }
+          return pick(num(args[0], op, expr), num(args[1], op, expr));
+        }
         if (op === "longueur") {
           if (Array.isArray(args[0])) return args[0].length;
           return String(args[0]).length;
@@ -757,7 +814,7 @@ function createRuntime(ast, options = {}) {
   function unwindLoop(frameList, kind) {
     while (frameList.length) {
       const f = frameList[frameList.length - 1];
-      if (f.kind === "repete" || f.kind === "tant_que" || f.kind === "pour") {
+      if (f.kind === "repete" || f.kind === "tant_que" || f.kind === "pour" || f.kind === "pour_chaque") {
         if (kind === "interrompre") frameList.pop();
         else f.i = f.nodes.length;
         return true;
@@ -796,13 +853,22 @@ function createRuntime(ast, options = {}) {
             f.i = 0;
             continue;
           }
+        } else if (f.kind === "pour_chaque") {
+          f.idx += 1;
+          if (f.idx < f.items.length) {
+            setVar(f.name, f.items[f.idx]);
+            f.i = 0;
+            continue;
+          }
         }
         frameList.pop();
         continue;
       }
 
-      const node = f.nodes[f.i++];
+      const node = f.nodes[f.i];
       const signal = exec(node, frameList, owner);
+      if (signal && signal.ask) return signal;
+      f.i += 1;
       return signal || { done: false, node };
     }
     return { done: true };
@@ -812,8 +878,8 @@ function createRuntime(ast, options = {}) {
     switch (node.type) {
       case "aide": {
         [
-          "T4C2 — affiche, soit, si, pour, repete, tant_que",
-          "Calcul : ajoute soustrait multiplie divise modulo puissance racine arrondis aleatoire",
+          "T4C2 — affiche, soit, si, pour, pour chaque, repete, tant_que",
+          "Calcul : ajoute soustrait multiplie divise modulo puissance racine arrondis aleatoire minimum maximum absolu",
           "Texte : «bonjour» ou \"bonjour\"  ·  Nombre : 3,14 ou -5",
           "Plus loin : fonc, liste, demande, avance / tourne",
         ].forEach((line) => emit(line, false));
@@ -885,9 +951,31 @@ function createRuntime(ast, options = {}) {
         });
         return { done: false, node };
       }
+      case "pour_chaque": {
+        const list = evalExpr(node.list);
+        if (!Array.isArray(list)) {
+          throw new T4C2Error("pour chaque attend une liste. Essaie : pour chaque note dans notes", node.line, node.col);
+        }
+        if (list.length) {
+          setVar(node.name, list[0]);
+          enterLoop(frameList, {
+            kind: "pour_chaque",
+            nodes: node.body,
+            i: 0,
+            name: node.name,
+            items: list,
+            idx: 0,
+          });
+        }
+        return { done: false, node };
+      }
       case "demande": {
         const q = formatValue(evalExpr(node.prompt));
-        const raw = ask(q);
+        if (pendingAnswer === undefined && !ask) {
+          return { done: false, ask: { name: node.name, question: q }, node };
+        }
+        const raw = pendingAnswer !== undefined ? pendingAnswer : ask(q);
+        pendingAnswer = undefined;
         let v = raw;
         if (raw !== "" && !Number.isNaN(Number(String(raw).replace(",", "."))) && String(raw).trim() !== "") {
           const n = Number(String(raw).replace(",", "."));
@@ -972,8 +1060,9 @@ function createRuntime(ast, options = {}) {
     try {
       const r = stepFrames(frames, null);
       return {
-        done: r.done,
+        done: !!r.done,
         node: r.node,
+        ask: r.ask || null,
         variables: snapshotVars(),
         output: lines.slice(),
         turtle,
@@ -983,6 +1072,7 @@ function createRuntime(ast, options = {}) {
     } catch (err) {
       return {
         done: true,
+        ask: null,
         variables: snapshotVars(),
         output: lines.slice(),
         turtle,
@@ -993,17 +1083,22 @@ function createRuntime(ast, options = {}) {
   }
 
   function runAll() {
-    let last = { done: false, variables: snapshotVars(), output: lines, turtle, warnings, error: null };
+    let last = { done: false, ask: null, variables: snapshotVars(), output: lines, turtle, warnings, error: null };
     while (!last.done) {
       last = step();
-      if (last.error) break;
+      if (last.error || last.ask) break;
     }
     return last;
+  }
+
+  function answer(value) {
+    pendingAnswer = value;
   }
 
   return {
     step,
     runAll,
+    answer,
     variables: global,
     lines,
     warnings,
@@ -1040,6 +1135,9 @@ function runProgram(code, options = {}) {
     const result = rt.runAll();
     return {
       ok: !result.error,
+      paused: !!result.ask,
+      ask: result.ask || null,
+      runtime: result.ask ? rt : null,
       variables: result.variables,
       output: result.output.map((l) => l.text),
       lines: result.output,
@@ -1129,6 +1227,11 @@ function printAst(ast, level = 0) {
         lines.push(printAst(node.body, 0).split("\n").map((l) => (l ? "  " + l : l)).join("\n"));
         w("fin");
         break;
+      case "pour_chaque":
+        w(`pour chaque ${node.name} dans ${printExpr(node.list)}`);
+        lines.push(printAst(node.body, 0).split("\n").map((l) => (l ? "  " + l : l)).join("\n"));
+        w("fin");
+        break;
       case "fonc":
         w(`fonc ${node.name}${node.params.length ? " " + node.params.join(" ") : ""}`);
         lines.push(printAst(node.body, 0).split("\n").map((l) => (l ? "  " + l : l)).join("\n"));
@@ -1164,12 +1267,24 @@ function printAst(ast, level = 0) {
 }
 
 function formatT4C2(code) {
-  try {
-    const ast = parser(lexer(code));
-    return printAst(ast).replace(/\n{3,}/g, "\n\n").trim() + "\n";
-  } catch {
-    return code;
+  const src = normalizeSource(code).replace(/\r\n/g, "\n");
+  const rows = src.split("\n");
+  let depth = 0;
+  const out = [];
+  for (const raw of rows) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      out.push("");
+      continue;
+    }
+    const bare = trimmed.replace(/\/\/.*$/, "").replace(/#.*$/, "").trim().toLowerCase();
+    const closer = /^(fin|sinon|sinon_si)\b/.test(bare);
+    if (closer) depth = Math.max(0, depth - 1);
+    out.push("  ".repeat(depth) + trimmed);
+    if (/^(sinon|sinon_si)\b/.test(bare)) depth += 1;
+    else if (/^(si|repete|tant_que|pour|fonc)\b/.test(bare)) depth += 1;
   }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]+$/gm, "").replace(/\s+$/, "") + "\n";
 }
 
 function walk(ast, fn) {
@@ -1198,7 +1313,7 @@ function lintT4C2(code, astReady) {
   const assigned = new Set();
   const read = new Set();
   walk(ast, (node) => {
-    if (node.type === "soit" || node.type === "demande" || node.type === "pour") {
+    if (node.type === "soit" || node.type === "demande" || node.type === "pour" || node.type === "pour_chaque") {
       assigned.add(node.name);
     }
     if (node.type === "var") read.add(node.name);
@@ -1290,6 +1405,13 @@ affiche element notes 2
 pousse notes 20
 affiche notes
 `,
+  chaque: `// Pour chaque
+soit notes liste 12 15 18
+pour chaque note dans notes
+  affiche note
+fin
+affiche maximum notes
+`,
   tortue: `// Carré
 repete 4
   avance 80
@@ -1298,11 +1420,24 @@ fin
 `,
 };
 
+const MISSIONS = {
+  hello: { title: "Dire bonjour", goal: "Affiche Bonjour T4C2 puis 1.", expect: ["Bonjour T4C2", "1"], next: "variables" },
+  variables: { title: "Garder une valeur", goal: "Garde un prénom et un âge, puis affiche-les.", expect: ["Teo", "12", "L'an prochain :", "13"], next: "conditions" },
+  conditions: { title: "Décider", goal: "Si les points sont au moins 10, affiche C'est réussi.", expect: ["C'est réussi"], next: "boucles" },
+  boucles: { title: "Compter", goal: "Compte de 5 à 1, puis Décollage.", expect: ["Compte à rebours", "5", "4", "3", "2", "1", "Décollage"], next: "fizzbuzz" },
+  fizzbuzz: { title: "FizzBuzz", goal: "FizzBuzz de 1 à 15. La dernière ligne est FizzBuzz.", expect: null, last: "FizzBuzz", next: "fonctions" },
+  fibonacci: { title: "Fibonacci", goal: "Affiche au moins 0 puis 1.", expect: null, first: ["0", "1"], next: "fonctions" },
+  fonctions: { title: "Fonction", goal: "Une fonction double qui affiche 42.", expect: ["42"], next: "listes" },
+  listes: { title: "Liste", goal: "Une liste de notes. Affiche au moins la taille.", expect: null, contains: ["3"], next: "chaque" },
+  chaque: { title: "Pour chaque", goal: "Parcours une liste avec pour chaque.", expect: ["12", "15", "18", "18"], next: "tortue" },
+  tortue: { title: "Tortue", goal: "Dessine un carré : 4 fois avance et tourne.", expect: null, turtle: 4, next: null },
+};
+
 function highlightHtml(code, escapeHtml) {
   const esc = escapeHtml || ((s) =>
     String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
   const src = String(code);
-  const re = /(\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|de|fonc|retourne|interrompre|continuer)\b|\b(affiche|aide|soit|set|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|pousse|retire|taille|element|avance|tourne|leve|pose|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
+  const re = /(\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer)\b|\b(affiche|aide|soit|set|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|pousse|retire|taille|element|avance|tourne|leve|pose|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
   let result = "";
   let last = 0;
   let m;
@@ -1375,26 +1510,44 @@ function runCli(argv) {
     let persist = { result: 0 };
     console.log(`T4C2 ${VERSION} — tape du français. .aide  .quitter`);
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: "t4c2> " });
+    let buf = "";
+    function unfinished(src) {
+      const tokens = lexer(src);
+      let open = 0;
+      for (const t of tokens) {
+        if (t.value === "si" || t.value === "repete" || t.value === "tant_que" || t.value === "pour" || t.value === "fonc") open++;
+        if (t.value === "fin") open--;
+      }
+      return open > 0;
+    }
     rl.prompt();
     rl.on("line", (line) => {
       const trimmed = line.trim();
-      if (trimmed === ".quitter" || trimmed === ".exit") {
+      if (!buf && (trimmed === ".quitter" || trimmed === ".exit")) {
         rl.close();
         return;
       }
-      if (trimmed === ".aide" || trimmed === ".help") {
+      if (!buf && (trimmed === ".aide" || trimmed === ".help")) {
         console.log(printHelp());
         rl.prompt();
         return;
       }
-      if (!trimmed) {
+      if (!trimmed && !buf) {
         rl.prompt();
         return;
       }
-      const result = runProgram(trimmed, { vars: persist, maxMs: 2000 });
+      buf += (buf ? "\n" : "") + line;
+      if (unfinished(buf)) {
+        rl.setPrompt("… ");
+        rl.prompt();
+        return;
+      }
+      const result = runProgram(buf, { vars: persist, maxMs: 2000 });
       result.output.forEach((l) => console.log(l));
       if (result.error) console.error(result.error.message);
       persist = Object.assign({ result: 0 }, result.variables);
+      buf = "";
+      rl.setPrompt("t4c2> ");
       rl.prompt();
     });
     return 0;
@@ -1408,6 +1561,33 @@ function runCli(argv) {
     return 1;
   }
   return 0;
+}
+
+function checkMission(name, result) {
+  const spec = MISSIONS[name];
+  if (!spec || !result || result.error) {
+    return { ok: false, message: result && result.error ? result.error.message : "Exécute d'abord le programme." };
+  }
+  const out = result.output || [];
+  if (spec.expect) {
+    const ok = spec.expect.every((line, i) => out[i] === line) && out.length === spec.expect.length;
+    return ok
+      ? { ok: true, message: "C'est bon.", next: spec.next }
+      : { ok: false, message: spec.goal + " La sortie n'est pas encore celle de la mission." };
+  }
+  if (spec.last && out[out.length - 1] !== spec.last) {
+    return { ok: false, message: spec.goal };
+  }
+  if (spec.first && spec.first.some((line, i) => out[i] !== line)) {
+    return { ok: false, message: spec.goal };
+  }
+  if (spec.contains && spec.contains.some((line) => !out.includes(line))) {
+    return { ok: false, message: spec.goal };
+  }
+  if (spec.turtle && !(result.turtle && result.turtle.path && result.turtle.path.length >= spec.turtle)) {
+    return { ok: false, message: spec.goal };
+  }
+  return { ok: true, message: "C'est bon.", next: spec.next };
 }
 
 const api = {
@@ -1431,7 +1611,9 @@ const api = {
   lintT4C2,
   highlightHtml,
   EXAMPLES,
+  MISSIONS,
   formatValue,
+  checkMission,
 };
 
 if (typeof module !== "undefined" && module.exports) {
