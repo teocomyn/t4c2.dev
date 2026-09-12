@@ -58,29 +58,38 @@ body.home ::selection {
   gap: 16px;
   width: min(1120px, calc(100% - 32px));
   margin: 16px auto 0;
-  padding: 10px 12px 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(5, 7, 12, 0.55);
+  padding: 8px 8px 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(5, 7, 12, 0.78);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border-radius: 999px;
 }
 .home-nav .brand-mark { color: #fff; letter-spacing: 0.18em; }
-.home-nav .brand-links a { color: rgba(238, 243, 248, 0.62); }
+.home-nav .brand-links {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.home-nav .brand-links a { color: rgba(255, 255, 255, 0.86); }
 .home-nav .brand-links a:hover,
 .home-nav .brand-links a[aria-current="page"] { color: #fff; }
-.home-nav-cta {
+.home-nav .brand-links a.home-nav-cta {
   display: inline-flex;
   align-items: center;
-  height: 36px;
-  padding: 0 14px;
+  height: 40px;
+  padding: 0 16px;
   border-radius: 999px;
-  background: #fff;
+  background: #7dd3fc;
   color: #05070c;
   text-decoration: none;
-  font: 700 0.82rem/1 "Bricolage Grotesque", var(--sans);
+  font: 800 0.88rem/1 "Bricolage Grotesque", var(--sans);
 }
-.home-nav-cta:hover { transform: translateY(-1px); }
+.home-nav .brand-links a.home-nav-cta:hover {
+  background: #fff;
+  color: #05070c;
+  transform: translateY(-1px);
+}
 .home-nav-cta:focus-visible,
 .home-btn:focus-visible,
 .home-pill:focus-visible,
@@ -93,50 +102,52 @@ body.home ::selection {
   min-height: calc(100svh - 88px);
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  width: min(1120px, calc(100% - 40px));
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: min(760px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 8vh 0 12vh;
+  padding: 10vh 0 12vh;
 }
 .home-kicker {
-  margin: 0 0 22px;
+  margin: 0 0 14px;
   color: #7dd3fc;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
 }
 .home-hero h1 {
   margin: 0;
-  font-size: clamp(3.4rem, 13vw, 9.4rem);
+  font-size: clamp(2.2rem, 6.4vw, 4.1rem);
   font-weight: 800;
-  letter-spacing: -0.07em;
-  line-height: 0.84;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
 }
-.home-hero h1 span {
-  display: block;
-  opacity: 0;
-  transform: translateY(28px);
-  animation: home-rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-.home-hero h1 span:nth-child(2) { animation-delay: 0.12s; }
-.home-hero h1 span:nth-child(3) { animation-delay: 0.24s; }
 .home-lede {
-  max-width: 22em;
-  margin: 28px 0 0;
-  color: rgba(238, 243, 248, 0.64);
-  font-size: clamp(1.05rem, 2vw, 1.35rem);
-  line-height: 1.45;
-  opacity: 0;
-  animation: home-rise 0.9s 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  max-width: 34em;
+  margin: 18px 0 0;
+  color: rgba(238, 243, 248, 0.78);
+  font-size: clamp(1.05rem, 1.8vw, 1.28rem);
+  line-height: 1.5;
+}
+.home-lede code {
+  font-family: "IBM Plex Mono", var(--mono);
+  color: #7dd3fc;
+  font-size: 0.92em;
+}
+.home-words {
+  margin: 18px 0 0;
+  color: rgba(238, 243, 248, 0.42);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
 }
 .home-cta {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 12px;
-  margin-top: 36px;
-  opacity: 0;
-  animation: home-rise 0.9s 0.52s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  margin-top: 32px;
 }
 .home-btn {
   display: inline-flex;
@@ -150,23 +161,14 @@ body.home ::selection {
   font: 700 0.95rem/1 "Bricolage Grotesque", var(--sans);
   border: 1px solid transparent;
 }
-.home-btn-p { background: #fff; color: #05070c; }
-.home-btn-p:hover { transform: translateY(-2px); }
+.home-btn-p { background: #7dd3fc; color: #05070c; }
+.home-btn-p:hover { background: #fff; transform: translateY(-2px); }
 .home-btn-g {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.06);
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
 }
-.home-btn-g:hover { background: rgba(255, 255, 255, 0.08); }
-.home-scroll {
-  margin-top: 48px;
-  color: rgba(238, 243, 248, 0.45);
-  text-decoration: none;
-  font-size: 0.82rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.home-scroll:hover { color: #fff; }
+.home-btn-g:hover { background: rgba(255, 255, 255, 0.12); }
 
 .home-studio {
   width: min(1120px, calc(100% - 40px));
@@ -339,8 +341,10 @@ body.home ::selection {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-hero h1 span,
+  .home-kicker,
+  .home-hero h1,
   .home-lede,
+  .home-words,
   .home-cta,
   .home-reveal {
     opacity: 1;
