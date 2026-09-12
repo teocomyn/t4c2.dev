@@ -23,7 +23,7 @@
       </div>
     </nav>
     <h1>Référence</h1>
-    <p>Les mots-clés ignorent les majuscules. Les noms les gardent. <code>3,14</code> s’affiche <code>3,14</code>. Les listes commencent à 1. Les parenthèses groupent seulement. Commentaires : <code>//</code> ou <code>#</code>.</p>
+    <p>Les mots-clés ignorent les majuscules. Les noms les gardent. <code>3,14</code> s’affiche <code>3,14</code>. Les listes commencent à 1. Les parenthèses groupent seulement. Commentaires : <code>//</code>, <code>#</code> ou <code>/* … */</code>.</p>
 
     <h2>Afficher et retenir</h2>
     <pre>affiche «Bonjour»
@@ -97,7 +97,14 @@ essaie
 attrape e
   affiche e
 fin</pre>
-    <p><code>rien</code> <code>en_nombre</code> <code>en_texte</code> <code>est_vide</code> <code>copie</code> <code>fixe</code></p>
+    <p><code>rien</code> <code>en_nombre</code> <code>en_texte</code> <code>est_vide</code> <code>copie</code> <code>fixe</code> <code>type_de</code> <code>index_de</code> <code>insere</code> <code>trie</code></p>
+
+    <h2>Fonctions comme valeurs</h2>
+    <pre>soit double fonc x
+  retourne multiplie x 2
+fin
+affiche applique double 21
+affiche type_de double</pre>
 
     <h2>Modules et tortue</h2>
     <pre>importe maths
@@ -119,7 +126,7 @@ remplis</pre>
     <p>Séance imprimable : <a href="fiche.html">fiche prof 45 min</a>. Playground intégré : <code>t4c2_web.html?embed=1</code>.</p>
 
     <footer class="brand-foot">
-      <span>T4C2 1.4 · même moteur partout</span>
+      <span>T4C2 1.5 · même moteur partout</span>
       <a href="t4c2_web.html">Ouvrir le playground</a>
     </footer>
   </div>

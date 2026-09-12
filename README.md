@@ -4,7 +4,7 @@
 
 T4C2 est un vrai langage : tu écris **en français**, ça tourne tout de suite. Plus lisible que Python. Plus textuel que Scratch.
 
-Version **1.4.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
+Version **1.5.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
 
 ---
 
@@ -145,6 +145,13 @@ fin
 importe maths
 affiche sinus pi
 
+soit double fonc x
+  retourne multiplie x 2
+fin
+affiche applique double 21
+affiche type_de double
+affiche trie liste 3 1 2
+
 fonc double x
   retourne multiplie x 2
 fin
@@ -187,6 +194,8 @@ Un seul fichier moteur : `t4c2.js`. Le playground le charge, il ne le recopie pl
 | `t4c2_web.html` | Playground (`?embed=1` pour iframe) |
 | `docs.html` | Référence |
 | `fiche.html` | Séance prof 45 min |
+| `extension/` | Extension VS Code (ouvrir le dossier dans Extensions : « Install from Location ») |
+| `sw.js` | Service worker PWA |
 | `t4c2.test.js` | Tests |
 | `exemples/*.t4c2` | Programmes |
 | `LICENSE` | MIT |

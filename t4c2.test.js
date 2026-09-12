@@ -335,6 +335,48 @@ test("fichiers relatifs", () => {
   }
 });
 
+test("lint voit applique comme usage", () => {
+  const { lintT4C2 } = require("./t4c2.js");
+  const w = lintT4C2(`soit double fonc x
+  retourne multiplie x 2
+fin
+affiche applique double 21`);
+  assert.equal(
+    w.some((x) => /double/.test(x.text)),
+    false,
+  );
+});
+
+test("applique et fonc valeur", () => {
+  assert.deepEqual(
+    out(`soit double fonc x
+  retourne multiplie x 2
+fin
+affiche applique double 21
+affiche type_de double`),
+    ["42", "fonc"],
+  );
+  assert.deepEqual(
+    out(`fonc triple x
+  retourne multiplie x 3
+fin
+soit f triple
+affiche applique f 7`),
+    ["21"],
+  );
+});
+
+test("index_de insere trie", () => {
+  assert.deepEqual(
+    out("soit n liste 3 1 2\ninsere n 1 9\naffiche index_de n 1\naffiche trie n"),
+    ["3", "[1 2 3 9]"],
+  );
+});
+
+test("commentaire bloc", () => {
+  assert.deepEqual(out("/* ignore */\naffiche 2"), ["2"]);
+});
+
 test("mission bonjour", () => {
   const { checkMission } = require("./t4c2.js");
   const r = runProgram("affiche «Bonjour T4C2»\naffiche 1");

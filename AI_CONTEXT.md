@@ -3,6 +3,6 @@
 - Classification : prototype / langage local. Pas de base hébergée.
 - Produit : langage de programmation en français. Pas un jouet scolaire — un vrai langage.
 - Moteur unique : `t4c2.js` (Node + `window.T4C2`). Le HTML ne recopie pas l’interpréteur.
-- Version : 1.4.0. Licence MIT. Auteur : Teo Comyn. Dépôt : https://github.com/teocomyn/t4c2.dev
+- Version : 1.5.0. Licence MIT. Auteur : Teo Comyn. Dépôt : https://github.com/teocomyn/t4c2.dev
 - Décisions : mots-clés insensibles à la casse ; noms sensibles à la casse ; listes indexées à 1 ; préfixe ; `( )` seulement pour grouper ; `fiche` pour les objets ; `importe` pour maths/temps/fichiers ; pas de réseau dans le playground.
 - Interdit dans ce dépôt : secrets, tokens, URLs privées.

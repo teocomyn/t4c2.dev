@@ -2,12 +2,12 @@
 // T4C2 — Langage de programmation en français
 // Un seul moteur : navigateur + Node. Pas d'effet de bord à l'import.
 
-const VERSION = "1.4.0";
+const VERSION = "1.5.0";
 
 const STMT = new Set([
   "affiche", "soit", "set", "fixe", "aide", "si", "alors", "sinon", "sinon_si", "fin",
   "repete", "tant_que", "faire", "pour", "interrompre", "continuer",
-  "fonc", "retourne", "demande", "pousse", "retire", "pose_element", "pose_champ",
+  "fonc", "retourne", "demande", "pousse", "retire", "pose_element", "pose_champ", "insere",
   "avance", "tourne", "leve", "pose", "couleur", "aller_a", "remplis",
   "selon", "cas", "essaie", "attrape", "importe", "attends",
   "lis_fichier", "ecris_fichier",
@@ -17,17 +17,18 @@ const BINARY = new Set([
   "ajoute", "soustrait", "multiplie", "divise", "modulo", "puissance",
   "egal", "different", "plus_grand", "plus_petit",
   "plus_grand_ou_egal", "plus_petit_ou_egal",
-  "et", "ou", "concat", "element", "contient",
+  "et", "ou", "concat", "element", "contient", "index_de",
 ]);
 
 const UNARY = new Set([
   "non", "racine", "arrondis", "longueur", "taille", "absolu", "premier", "dernier",
   "en_nombre", "en_texte", "est_vide", "copie", "majuscule", "minuscule", "lis_fichier",
+  "type_de", "trie",
 ]);
 
 const SPECIAL_EXPR = new Set([
   "aleatoire", "liste", "fiche", "vrai", "faux", "rien", "minimum", "maximum",
-  "coupe", "remplace", "champ",
+  "coupe", "remplace", "champ", "applique",
 ]);
 
 const RESERVED = new Set([
@@ -78,6 +79,14 @@ function makeFiche() {
 
 function ficheKeys(v) {
   return Object.keys(v).filter((k) => k !== "__t4c2");
+}
+
+function isFonc(v) {
+  return !!v && typeof v === "object" && v.__t4c2 === "fonc";
+}
+
+function makeFonc(name, params, body) {
+  return { __t4c2: "fonc", name: name || "", params: params || [], body: body || [] };
 }
 
 function resolveColor(name) {
@@ -170,6 +179,15 @@ function preprocess(input) {
       inGuillemet = true;
       out.push(c);
       i++;
+      continue;
+    }
+    if (c === "/" && src[i + 1] === "*") {
+      i += 2;
+      while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) {
+        if (src[i] === "\n") out.push("\n");
+        i++;
+      }
+      if (i < src.length) i += 2;
       continue;
     }
     if ((c === "/" && src[i + 1] === "/") || c === "#") {
@@ -351,6 +369,10 @@ function collectArities(tokens) {
   const found = new Map();
   for (let k = 0; k < tokens.length; k++) {
     if (tokens[k].value === "fonc" && tokens[k + 1] && tokens[k + 1].type === "IDENT") {
+      const prev = tokens[k - 1];
+      if (prev && (prev.type === "IDENT" || prev.value === "applique" || prev.type === "LPAREN")) {
+        continue;
+      }
       const name = tokens[k + 1].value;
       let n = 0;
       let j = k + 2;
@@ -405,12 +427,33 @@ function parser(tokens, { functions } = {}) {
   function isExprStart(t) {
     if (!t || t.type === "EOF") return false;
     if (t.type === "NUMBER" || t.type === "STRING" || t.type === "IDENT" || t.type === "LPAREN") return true;
-    if (t.value === "result") return true;
+    if (t.value === "result" || t.value === "fonc") return true;
     if (t.type !== "KEYWORD") return false;
     if (STMT.has(t.value) && !SPECIAL_EXPR.has(t.value) && !BINARY.has(t.value) && !UNARY.has(t.value)) {
       return false;
     }
     return BINARY.has(t.value) || UNARY.has(t.value) || SPECIAL_EXPR.has(t.value);
+  }
+
+  function parseFoncExpr() {
+    const t = peek();
+    next();
+    const params = [];
+    while (peek() && peek().type === "IDENT") params.push(next().value);
+    const body = parseBlock(["fin"]);
+    expectValue("fin");
+    return { type: "fonc_expr", params, body, ...loc(t) };
+  }
+
+  function parseCallee(depth) {
+    const t = peek();
+    if (t && t.value === "fonc") return parseFoncExpr();
+    if (t && t.type === "LPAREN") return parseExpression(depth);
+    if (t && (t.type === "IDENT" || t.value === "result")) {
+      next();
+      return { type: "fnref", name: t.value, ...loc(t) };
+    }
+    return parseExpression(depth);
   }
 
   function parseKey() {
@@ -449,6 +492,16 @@ function parser(tokens, { functions } = {}) {
     if (t.value === "rien") {
       next();
       return { type: "literal", value: null, ...loc(t) };
+    }
+    if (t.value === "fonc") {
+      return parseFoncExpr();
+    }
+    if (t.value === "applique") {
+      next();
+      const fn = parseCallee(depth + 1);
+      const args = [];
+      while (isExprStart(peek()) && peek().value !== "fonc") args.push(parseExpression(depth + 1));
+      return { type: "applique", fn, args, ...loc(t) };
     }
     if (t.value === "liste") {
       next();
@@ -518,10 +571,14 @@ function parser(tokens, { functions } = {}) {
       const name = t.value;
       next();
       if (arities.has(name)) {
-        const args = [];
         const n = arities.get(name);
-        for (let k = 0; k < n; k++) args.push(parseExpression(depth + 1));
-        return { type: "appel", name, args, ...loc(t) };
+        if (n === 0) return { type: "appel", name, args: [], ...loc(t) };
+        if (isExprStart(peek())) {
+          const args = [];
+          for (let k = 0; k < n; k++) args.push(parseExpression(depth + 1));
+          return { type: "appel", name, args, ...loc(t) };
+        }
+        return { type: "fnref", name, ...loc(t) };
       }
       return { type: "var", name, ...loc(t) };
     }
@@ -708,6 +765,16 @@ function parser(tokens, { functions } = {}) {
       next();
       return { type: "retire", list: parseExpression(), ...loc(t) };
     }
+    if (t.value === "insere") {
+      next();
+      return {
+        type: "insere",
+        list: parseExpression(),
+        index: parseExpression(),
+        expr: parseExpression(),
+        ...loc(t),
+      };
+    }
     if (t.value === "pose_element") {
       next();
       return {
@@ -778,6 +845,7 @@ function formatValue(val) {
   if (isFiche(val)) {
     return `{${ficheKeys(val).map((k) => `${k} ${formatValue(val[k])}`).join(" ")}}`;
   }
+  if (isFonc(val)) return val.name ? `fonc ${val.name}` : "fonc";
   return String(val);
 }
 
@@ -846,7 +914,7 @@ function createRuntime(ast, options = {}) {
   }
 
   walkNodes(ast, (node) => {
-    if (node.type === "fonc") functions.set(node.name, node);
+    if (node.type === "fonc") functions.set(node.name, makeFonc(node.name, node.params, node.body));
     if (node.type === "importe") applyImport(node.name, node);
   });
 
@@ -958,6 +1026,43 @@ function createRuntime(ast, options = {}) {
     return false;
   }
 
+  function callUserFn(fn, args, node) {
+    if (!isFonc(fn)) {
+      throw new T4C2Error(
+        `applique attend une fonction. Tu as donné ${formatValue(fn)}.`,
+        node && node.line,
+        node && node.col,
+      );
+    }
+    if (args.length !== fn.params.length) {
+      throw new T4C2Error(
+        `« ${fn.name || "fonc"} » attend ${fn.params.length} valeur(s), pas ${args.length}.`,
+        node && node.line,
+        node && node.col,
+      );
+    }
+    const local = {};
+    fn.params.forEach((p, idx) => {
+      local[p] = args[idx];
+    });
+    scopes.push(local);
+    constants.push(new Set());
+    const owner = { _return: undefined };
+    const fnFrames = [{ kind: "fn", nodes: fn.body, i: 0 }];
+    try {
+      while (fnFrames.length) {
+        const r = stepFrames(fnFrames, owner);
+        if (r.done || r.returned) break;
+      }
+    } finally {
+      scopes.pop();
+      constants.pop();
+    }
+    const ret = owner._return !== undefined ? owner._return : global.result;
+    global.result = ret;
+    return ret;
+  }
+
   function num(v, op, node) {
     if (typeof v !== "number" || !Number.isFinite(v)) {
       throw new T4C2Error(
@@ -995,6 +1100,20 @@ function createRuntime(ast, options = {}) {
         }
         return target[expr.key];
       }
+      case "fnref": {
+        if (functions.has(expr.name)) return functions.get(expr.name);
+        const v = getVar(expr.name, expr);
+        if (isFonc(v)) return v;
+        throw new T4C2Error(
+          `« ${expr.name} » n'est pas une fonction.`,
+          expr.line,
+          expr.col,
+        );
+      }
+      case "fonc_expr":
+        return makeFonc("", expr.params, expr.body);
+      case "applique":
+        return callUserFn(evalExpr(expr.fn), expr.args.map(evalExpr), expr);
       case "appel": {
         const args = expr.args.map(evalExpr);
         if (imported.has("maths") && Object.prototype.hasOwnProperty.call(MATHS_ARITY, expr.name)) {
@@ -1017,26 +1136,7 @@ function createRuntime(ast, options = {}) {
             expr.col,
           );
         }
-        const local = {};
-        fn.params.forEach((p, idx) => {
-          local[p] = args[idx];
-        });
-        scopes.push(local);
-        constants.push(new Set());
-        const owner = { _return: undefined };
-        const fnFrames = [{ kind: "fn", nodes: fn.body, i: 0 }];
-        try {
-          while (fnFrames.length) {
-            const r = stepFrames(fnFrames, owner);
-            if (r.done || r.returned) break;
-          }
-        } finally {
-          scopes.pop();
-          constants.pop();
-        }
-        const ret = owner._return !== undefined ? owner._return : global.result;
-        global.result = ret;
-        return ret;
+        return callUserFn(fn, args, expr);
       }
       case "call": {
         const op = expr.op;
@@ -1118,6 +1218,36 @@ function createRuntime(ast, options = {}) {
             return o;
           }
           throw new T4C2Error("copie attend une liste ou une fiche.", expr.line, expr.col);
+        }
+        if (op === "type_de") {
+          if (args[0] === null || args[0] === undefined) return "rien";
+          if (args[0] === true || args[0] === false) return "booleen";
+          if (typeof args[0] === "number") return "nombre";
+          if (typeof args[0] === "string") return "texte";
+          if (Array.isArray(args[0])) return "liste";
+          if (isFiche(args[0])) return "fiche";
+          if (isFonc(args[0])) return "fonc";
+          return "inconnu";
+        }
+        if (op === "trie") {
+          if (!Array.isArray(args[0])) {
+            throw new T4C2Error("trie attend une liste.", expr.line, expr.col);
+          }
+          return args[0].slice().sort((a, b) => {
+            if (typeof a === "number" && typeof b === "number") return a - b;
+            return String(a).localeCompare(String(b), "fr");
+          });
+        }
+        if (op === "index_de") {
+          if (typeof args[0] === "string") {
+            const i = args[0].indexOf(String(args[1]));
+            return i < 0 ? 0 : i + 1;
+          }
+          if (Array.isArray(args[0])) {
+            const i = args[0].findIndex((v) => valuesEqual(v, args[1]));
+            return i < 0 ? 0 : i + 1;
+          }
+          throw new T4C2Error("index_de attend un texte ou une liste.", expr.line, expr.col);
         }
         if (op === "majuscule") return String(args[0]).toLocaleUpperCase("fr-FR");
         if (op === "minuscule") return String(args[0]).toLocaleLowerCase("fr-FR");
@@ -1299,7 +1429,7 @@ function createRuntime(ast, options = {}) {
           "Calcul : ajoute soustrait multiplie divise modulo puissance racine arrondis aleatoire minimum maximum absolu",
           "Texte : contient coupe remplace majuscule minuscule  ·  Nombre : 3,14  ·  rien",
           "Données : fiche champ pose_champ liste pose_element premier dernier",
-          "Plus loin : fonc, demande, importe maths / temps / fichiers",
+          "Plus loin : fonc, applique, type_de, importe maths / temps / fichiers",
         ].forEach((line) => emit(line, false));
         return { done: false, node };
       }
@@ -1449,6 +1579,19 @@ function createRuntime(ast, options = {}) {
         global.result = list.pop();
         return { done: false, node };
       }
+      case "insere": {
+        const list = evalExpr(node.list);
+        if (!Array.isArray(list)) {
+          throw new T4C2Error("insere attend une liste.", node.line, node.col);
+        }
+        const idx = Math.floor(num(evalExpr(node.index), "insere", node));
+        if (idx < 1 || idx > list.length + 1) {
+          throw new T4C2Error(`insere attend une position entre 1 et ${list.length + 1}.`, node.line, node.col);
+        }
+        list.splice(idx - 1, 0, evalExpr(node.expr));
+        global.result = list.length;
+        return { done: false, node };
+      }
       case "pose_element": {
         const list = evalExpr(node.list);
         if (!Array.isArray(list)) {
@@ -1573,7 +1716,7 @@ function createRuntime(ast, options = {}) {
         return { done: true, returned: true, node };
       }
       case "fonc":
-        functions.set(node.name, node);
+        functions.set(node.name, makeFonc(node.name, node.params, node.body));
         return { done: false, node };
       default:
         throw new T4C2Error(`instruction inconnue : ${node.type}`, node.line, node.col);
@@ -1853,7 +1996,7 @@ function lintT4C2(code, astReady) {
     if (node.type === "soit" || node.type === "fixe" || node.type === "demande" || node.type === "pour" || node.type === "pour_chaque" || node.type === "essaie") {
       assigned.add(node.name);
     }
-    if (node.type === "var") read.add(node.name);
+    if (node.type === "var" || node.type === "fnref") read.add(node.name);
     if (node.type === "tant_que" && node.cond && node.cond.type === "var") {
       let mutated = false;
       walk(node.body, (inner) => {
@@ -1974,6 +2117,12 @@ selon jour
     affiche «autre»
 fin
 `,
+  applique: `// Fonction comme valeur
+soit double fonc x
+  retourne multiplie x 2
+fin
+affiche applique double 21
+`,
   tortue: `// Carré
 couleur «bleu»
 repete 4
@@ -1995,7 +2144,8 @@ const MISSIONS = {
   chaque: { title: "Pour chaque", goal: "Parcours une liste avec pour chaque.", expect: ["12", "15", "18", "18"], next: "fiche" },
   fiche: { title: "Fiche", goal: "Une fiche avec un nom et un score.", expect: ["Léa", "20"], next: "texte" },
   texte: { title: "Texte", goal: "Majuscule, contient, coupe.", expect: ["T4C2", "vrai", "bon"], next: "selon" },
-  selon: { title: "Selon", goal: "Selon un jour, affiche début ou autre.", expect: ["début"], next: "tortue" },
+  selon: { title: "Selon", goal: "Selon un jour, affiche début ou autre.", expect: ["début"], next: "applique" },
+  applique: { title: "Applique", goal: "Une fonction stockée qui affiche 42.", expect: ["42"], next: "tortue" },
   tortue: { title: "Tortue", goal: "Dessine un carré : 4 fois avance et tourne.", expect: null, turtle: 4, next: null },
 };
 
@@ -2003,7 +2153,7 @@ function highlightHtml(code, escapeHtml) {
   const esc = escapeHtml || ((s) =>
     String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
   const src = String(code);
-  const re = /(\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|champ|pose_champ|pose_element|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
+  const re = /(\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
   let result = "";
   let last = 0;
   let m;

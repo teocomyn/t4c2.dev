@@ -120,5 +120,10 @@ affiche message</textarea>
   <script src="constellation.js"></script>
   <script src="sparkles.js"></script>
   <script src="home.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+  </script>
 </body>
 </html>

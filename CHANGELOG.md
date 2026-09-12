@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0 — 2026-09-12
+
+- Fonctions comme valeurs : `soit f fonc x … fin`, `applique f 21`, `type_de`.
+- Listes : `insere`, `index_de`, `trie`. Commentaires `/* … */`.
+- Extension VS Code dans `extension/`. PWA : `sw.js`.
+
 ## 1.4.0 — 2026-09-12
 
 - Données : `fiche`, `champ`, `pose_champ`, `pose_element`, `copie`, `rien`.

@@ -221,6 +221,7 @@
           <option value="fiche">Fiche</option>
           <option value="texte">Texte</option>
           <option value="selon">Selon</option>
+          <option value="applique">Applique</option>
           <option value="tortue">Tortue</option>
         </select>
         <details class="more">
@@ -314,14 +315,15 @@ affiche x
           <p><code>fonc double x … retourne … fin</code></p>
           <p><code>fiche nom «Léa»</code> <code>champ</code> <code>pose_champ</code></p>
           <p><code>liste</code> <code>pose_element</code> <code>contient</code> <code>coupe</code></p>
-          <p><code>selon</code> <code>essaie</code> <code>importe maths</code></p>
+          <p><code>selon</code> <code>essaie</code> <code>applique</code> <code>type_de</code></p>
+          <p><code>importe maths</code></p>
           <p><code>avance</code> <code>couleur «bleu»</code> <code>aller_a</code></p>
         </div>
       </div>
     </section>
 
     <footer>
-      <span>T4C2 1.4 — clarté, créativité, accessibilité. Par Teo Comyn.</span>
+      <span>T4C2 1.5 — clarté, créativité, accessibilité. Par Teo Comyn.</span>
       <span>Les listes commencent à 1. Intégrer : <code>t4c2_web.html?embed=1</code></span>
     </footer>
   </div>
@@ -667,6 +669,7 @@ affiche x
         return;
       }
       currentMission = name;
+      if (missions) missions.value = name;
       codeEl.value = src;
       baseline = src;
       markErr = 0;
@@ -838,6 +841,9 @@ affiche x
     const draftOk = document.getElementById("btn-draft-ok");
     if (draftOk) draftOk.onclick = () => { document.getElementById("draft-banner").hidden = true; };
     updateHighlight();
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
   </script>
 </body>
 </html>

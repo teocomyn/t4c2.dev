@@ -1,0 +1,28 @@
+{
+  "name": "t4c2",
+  "displayName": "T4C2",
+  "description": "Le langage de programmation en français.",
+  "version": "1.5.0",
+  "publisher": "teocomyn",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "t4c2",
+        "aliases": ["T4C2"],
+        "extensions": [".t4c2"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "t4c2",
+        "scopeName": "source.t4c2",
+        "path": "./syntaxes/t4c2.tmLanguage.json"
+      }
+    ]
+  }
+}
