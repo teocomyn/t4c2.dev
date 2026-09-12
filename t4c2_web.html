@@ -9,79 +9,87 @@
   <meta property="og:description" content="Programmer en français, tout de suite.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#f4efe6">
+  <link rel="stylesheet" href="brand.css">
+  <meta name="theme-color" content="#e8f0f8">
   <style>
     :root {
-      --bg: #f4efe6;
-      --paper: #fffdf8;
-      --ink: #1f1b16;
-      --muted: #6b6258;
-      --line: #e4d9c8;
-      --accent: #0f6b63;
+      --paper: rgba(255,255,255,0.82);
+      --accent: #14181f;
       --accent-ink: #fff;
-      --warn: #9a4b12;
-      --err: #9b1c1c;
-      --ok: #0f6b63;
-      --hl-key: #9a4b12;
-      --hl-ctrl: #6b3fa0;
-      --hl-str: #0f6b63;
-      --hl-num: #1d4e89;
-      --hl-com: #8a8074;
-      --gutter: #c4b8a8;
-      --mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
-      --sans: ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+      --warn: #c2410c;
+      --err: #b42318;
+      --ok: #087443;
+      --hl-key: #b45309;
+      --hl-ctrl: #5b21b6;
+      --hl-str: #087443;
+      --hl-num: #2f6fed;
+      --hl-com: #7b8794;
+      --gutter: #9aa7b5;
     }
     [data-theme="dark"] {
-      --bg: #1c1917;
-      --paper: #292524;
-      --ink: #f5f0e8;
-      --muted: #a8a29e;
-      --line: #44403c;
-      --accent: #2dd4bf;
-      --accent-ink: #123;
-      --warn: #fb923c;
-      --err: #f87171;
-      --ok: #2dd4bf;
+      --bg: #10141b;
+      --paper: #1c222c;
+      --ink: #eef2f6;
+      --muted: #9aa7b5;
+      --line: #2c3440;
+      --accent: #fff;
+      --accent-ink: #14181f;
+      --sky: #10141b;
+      --fog: #10141b;
       --hl-key: #fb923c;
       --hl-ctrl: #c4b5fd;
-      --hl-str: #5eead4;
-      --hl-num: #7dd3fc;
-      --hl-com: #78716c;
-      --gutter: #78716c;
+      --hl-str: #6ee7b7;
+      --hl-num: #93c5fd;
+      --hl-com: #6b7280;
+      --gutter: #6b7280;
+    }
+    [data-theme="dark"] body {
+      background: #10141b;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; min-height: 100%; }
     body {
       font-family: var(--sans);
-      background: var(--bg);
       color: var(--ink);
       line-height: 1.45;
     }
     @media (prefers-reduced-motion: reduce) {
       * { transition: none !important; scroll-behavior: auto !important; }
     }
-    .app { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; display: flex; flex-direction: column; gap: 16px; min-height: 100vh; }
+    .app { max-width: 1180px; margin: 0 auto; padding: 18px 16px 40px; display: flex; flex-direction: column; gap: 16px; min-height: 100vh; }
     .embed .top, .embed .ref, .embed footer { display: none !important; }
     .top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    h1 { margin: 0; font-size: 1.4rem; letter-spacing: 0.04em; }
+    h1 { margin: 8px 0 0; font-size: 1.35rem; letter-spacing: -0.03em; }
     h1 span { display: block; font-size: 0.85rem; font-weight: 400; color: var(--muted); letter-spacing: 0; }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    button, select, .file-btn {
-      font: 600 0.85rem/1 var(--sans);
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    button, select, .file-btn, details.more {
+      font: 600 0.82rem/1 var(--sans);
       border: 1px solid var(--line);
       background: var(--paper);
       color: var(--ink);
       padding: 8px 12px;
-      border-radius: 8px;
+      border-radius: 999px;
       cursor: pointer;
     }
-    button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    button.primary {
+      width: 40px; height: 40px; padding: 0; border-radius: 999px;
+      background: var(--ink); color: #fff; border-color: transparent;
+    }
+    [data-theme="dark"] button.primary { background: #fff; color: #14181f; }
     button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    button:hover, select:hover { border-color: var(--muted); }
+    .more { position: relative; }
+    .more > summary { list-style: none; }
+    .more > summary::-webkit-details-marker { display: none; }
+    .more-panel {
+      position: absolute; right: 0; top: calc(100% + 8px); z-index: 8;
+      display: flex; flex-direction: column; gap: 6px; min-width: 180px;
+      background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 8px;
+    }
+    .more-panel button { width: 100%; text-align: left; }
     .hint { font-size: 0.75rem; color: var(--muted); margin-left: 4px; font-weight: 500; }
     .grid { display: grid; grid-template-columns: 1.3fr 0.9fr; gap: 16px; min-height: 0; flex: 1; }
     @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
-    .card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; min-height: 280px; overflow: hidden; }
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: 22px; display: flex; flex-direction: column; min-height: 280px; overflow: hidden; }
     .card-h { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
     .status.ok { color: var(--ok); }
     .status.err { color: var(--err); }
@@ -148,23 +156,24 @@
   <div class="app" id="app">
     <header class="top">
       <div>
-        <nav class="nav">
-          <a href="index.html">Accueil</a>
-          <a href="t4c2_web.html" aria-current="page">Playground</a>
-          <a href="docs.html">Référence</a>
+        <nav class="brand-nav" style="margin:0">
+          <a class="brand-mark" href="index.html">
+            <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="#14181f"/><circle cx="32" cy="18" r="7" fill="#e8f0f8"/><circle cx="18" cy="32" r="7" fill="#e8f0f8"/><circle cx="46" cy="32" r="7" fill="#e8f0f8"/><circle cx="32" cy="46" r="7" fill="#e8f0f8"/><rect x="29" y="22" width="6" height="20" rx="3" fill="#2f6fed"/><rect x="23" y="22" width="18" height="6" rx="3" fill="#2f6fed"/></svg>
+            T4C2
+          </a>
+          <div class="brand-links">
+            <a href="t4c2_web.html" aria-current="page">Playground</a>
+            <a href="docs.html">Référence</a>
+          </div>
         </nav>
-        <h1>T4C2 <span>Un langage pour apprendre à programmer en français, à partir de 10 ans.</span></h1>
+        <h1>Playground <span>Écris du français. Exécuter : ⌘↵</span></h1>
       </div>
       <div class="actions">
-        <button class="primary" id="btn-run" type="button">Exécuter <span class="hint">⌘↵</span></button>
-        <button id="btn-step" type="button">Pas à pas</button>
-        <button id="btn-fmt" type="button">Formater</button>
-        <button id="btn-clear" type="button">Effacer la sortie</button>
-        <button id="btn-open" type="button">Ouvrir…</button>
-        <button id="btn-save" type="button">Télécharger</button>
-        <input id="file-open" type="file" accept=".t4c2,.txt,text/plain" hidden>
+        <button class="primary" id="btn-run" type="button" aria-label="Exécuter" title="Exécuter ⌘↵">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
         <select id="missions" aria-label="Missions">
-          <option value="">Charger une mission…</option>
+          <option value="">Missions</option>
           <option value="hello">1. Dire bonjour</option>
           <option value="variables">2. Garder une valeur</option>
           <option value="conditions">3. Décider</option>
@@ -175,8 +184,19 @@
           <option value="listes">Liste</option>
           <option value="tortue">Tortue</option>
         </select>
-        <button id="btn-theme" type="button">Thème clair</button>
-        <button id="btn-share" type="button">Copier le lien</button>
+        <details class="more">
+          <summary>Plus</summary>
+          <div class="more-panel">
+            <button id="btn-step" type="button">Pas à pas</button>
+            <button id="btn-fmt" type="button">Formater</button>
+            <button id="btn-clear" type="button">Effacer la sortie</button>
+            <button id="btn-open" type="button">Ouvrir…</button>
+            <button id="btn-save" type="button">Télécharger</button>
+            <button id="btn-theme" type="button">Thème clair</button>
+            <button id="btn-share" type="button">Copier le lien</button>
+          </div>
+        </details>
+        <input id="file-open" type="file" accept=".t4c2,.txt,text/plain" hidden>
       </div>
     </header>
 
@@ -367,7 +387,7 @@ affiche x
     function runAll() {
       stepper = null;
       const t0 = performance.now();
-      const result = T.runProgram(codeEl.value);
+      const result = T.runProgram(codeEl.value, { maxMs: 1000 });
       const ms = (performance.now() - t0).toFixed(1);
       renderResult(result, ms, true);
     }
