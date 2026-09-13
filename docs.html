@@ -154,6 +154,23 @@ modele Chien herite Animal
 fin</pre>
     <p><code>nouveau</code> appelle <code>init</code> s’il existe. <code>sur</code> lance une méthode. <code>moi</code> est l’objet. <code>parent</code> appelle le modèle parent. <code>est</code> suit la chaîne <code>herite</code>. <code>fiche</code> reste pour les données plates.</p>
 
+    <h2>Apparier et texte</h2>
+    <pre>soit noms liste «Ada» «Teo»
+soit notes liste 18 16
+pour chaque nom note dans apparie noms notes
+  affiche forme «{nom} {note}»
+fin
+affiche somme notes
+affiche moyenne notes
+affiche joint «, » noms
+affiche separe «Ada,Teo» «,»
+affiche numerote notes
+affiche commence_par «bonjour» «bon»
+
+importe temps
+affiche annee maintenant</pre>
+    <p><code>apparie</code> relie des listes (comme <code>zip</code>). <code>numerote</code> ajoute l’index (à partir de 1). <code>pour chaque a b dans</code> déplie un nuple. <code>compte</code> <code>separe</code> <code>joint</code> <code>commence_par</code> <code>finit_par</code>. <code>importe temps</code> : <code>annee</code> <code>mois</code> <code>jour</code> <code>heure</code>.</p>
+
     <h2>Fonctions comme valeurs</h2>
     <pre>soit double fonc x
   retourne multiplie x 2
@@ -181,7 +198,7 @@ remplis</pre>
     <p>Séance imprimable : <a href="fiche.html">fiche prof 45 min</a>. Playground intégré : <code>t4c2_web.html?embed=1</code>.</p>
 
     <footer class="brand-foot">
-      <span>T4C2 1.7 · même moteur partout</span>
+      <span>T4C2 1.8 · même moteur partout</span>
       <a href="t4c2_web.html">Ouvrir le playground</a>
     </footer>
   </div>

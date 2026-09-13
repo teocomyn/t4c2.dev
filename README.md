@@ -4,7 +4,7 @@
 
 T4C2 est un vrai langage : tu écris **en français**, ça tourne tout de suite. Plus lisible que Python. Plus textuel que Scratch.
 
-Version **1.7.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
+Version **1.8.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
 
 ---
 
@@ -167,6 +167,14 @@ fin
 soit mac nouveau Produit «Mac» 4000
 affiche sur mac etiquette
 affiche est mac Produit
+
+soit noms liste «Ada» «Teo»
+soit notes liste 18 16
+pour chaque nom note dans apparie noms notes
+  affiche forme «{nom} {note}»
+fin
+affiche somme notes
+affiche joint «, » noms
 
 fonc double x
   retourne multiplie x 2

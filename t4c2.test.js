@@ -335,6 +335,16 @@ test("fichiers relatifs", () => {
   }
 });
 
+test("lint voit forme comme usage", () => {
+  const { lintT4C2 } = require("./t4c2.js");
+  const w = lintT4C2(`soit prenom «Teo»
+affiche forme «Bonjour {prenom}»`);
+  assert.equal(
+    w.some((x) => /prenom/.test(x.text)),
+    false,
+  );
+});
+
 test("lint voit applique comme usage", () => {
   const { lintT4C2 } = require("./t4c2.js");
   const w = lintT4C2(`soit double fonc x
@@ -461,6 +471,36 @@ affiche est rex Animal
 affiche champ rex race`),
     ["Rex aboie", "vrai", "berger"],
   );
+});
+
+test("apparie numerote somme", () => {
+  assert.deepEqual(
+    out(`soit noms liste «Ada» «Teo»
+soit notes liste 18 16
+pour chaque nom note dans apparie noms notes
+  affiche forme «{nom} {note}»
+fin
+affiche somme notes
+affiche moyenne notes
+affiche compte notes 18
+affiche joint «, » noms
+affiche separe «Ada,Teo» «,»
+affiche commence_par «bonjour» «bon»
+affiche finit_par «bonjour» «jour»
+affiche numerote notes`),
+    ["Ada 18", "Teo 16", "34", "17", "1", "Ada, Teo", "[Ada Teo]", "vrai", "vrai", "[(1 18) (2 16)]"],
+  );
+});
+
+test("temps annee", () => {
+  assert.deepEqual(out("importe temps\naffiche annee 0"), ["1970"]);
+});
+
+test("mission apparie", () => {
+  const { checkMission, EXAMPLES } = require("./t4c2.js");
+  const r = runProgram(EXAMPLES.apparie);
+  const c = checkMission("apparie", r);
+  assert.equal(c.ok, true);
 });
 
 test("mission bonjour", () => {

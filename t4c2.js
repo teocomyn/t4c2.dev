@@ -2,7 +2,7 @@
 // T4C2 — Langage de programmation en français
 // Un seul moteur : navigateur + Node. Pas d'effet de bord à l'import.
 
-const VERSION = "1.7.0";
+const VERSION = "1.8.0";
 
 const STMT = new Set([
   "affiche", "soit", "set", "fixe", "aide", "si", "alors", "sinon", "sinon_si", "fin",
@@ -19,12 +19,13 @@ const BINARY = new Set([
   "egal", "different", "plus_grand", "plus_petit",
   "plus_grand_ou_egal", "plus_petit_ou_egal",
   "et", "ou", "concat", "element", "contient", "index_de", "fusionne",
+  "separe", "joint", "commence_par", "finit_par", "compte",
 ]);
 
 const UNARY = new Set([
   "non", "racine", "arrondis", "longueur", "taille", "absolu", "premier", "dernier",
   "en_nombre", "en_texte", "est_vide", "copie", "majuscule", "minuscule", "lis_fichier",
-  "type_de", "trie", "cles", "valeurs", "unique", "inverse",
+  "type_de", "trie", "cles", "valeurs", "unique", "inverse", "numerote",
 ]);
 
 const SPECIAL_EXPR = new Set([
@@ -32,6 +33,7 @@ const SPECIAL_EXPR = new Set([
   "coupe", "remplace", "champ", "applique",
   "ensemble", "nuple", "plage", "carte", "filtre", "reduis", "forme", "tous", "un_parmi",
   "nouveau", "sur", "parent", "moi", "est",
+  "apparie", "somme", "moyenne",
 ]);
 
 const RESERVED = new Set([
@@ -54,7 +56,7 @@ const MAX_DEPTH = 64;
 const MATHS_ARITY = {
   sinus: 1, cosinus: 1, tangente: 1, plancher: 1, plafond: 1, troncature: 1,
 };
-const TEMPS_ARITY = { maintenant: 0 };
+const TEMPS_ARITY = { maintenant: 0, annee: 1, mois: 1, jour: 1, heure: 1 };
 
 const COLORS = {
   rouge: "#e11d48",
@@ -633,6 +635,18 @@ function parser(tokens, { functions } = {}) {
       while (isExprStart(peek()) && peek().value !== "fonc") args.push(parseExpression(depth + 1));
       return { type: "applique", fn, args, ...loc(t) };
     }
+    if (t.value === "apparie" || t.value === "somme" || t.value === "moyenne") {
+      const op = next().value;
+      const args = [];
+      while (isExprStart(peek())) args.push(parseExpression(depth + 1));
+      if (op === "apparie" && args.length < 2) {
+        fail("apparie attend au moins deux listes. Essaie : apparie noms notes", t);
+      }
+      if ((op === "somme" || op === "moyenne") && !args.length) {
+        fail(`${op} attend une liste ou des nombres. Essaie : ${op} liste 1 2 3`, t);
+      }
+      return { type: "call", op, args, ...loc(t) };
+    }
     if (t.value === "liste" || t.value === "ensemble" || t.value === "nuple") {
       const kind = next().value;
       const items = [];
@@ -876,16 +890,18 @@ function parser(tokens, { functions } = {}) {
       next();
       if (peek() && peek().value === "chaque") {
         next();
-        const nameTok = peek();
-        if (!nameTok || nameTok.type !== "IDENT") {
-          fail("après pour chaque, j'attendais un nom. Essaie : pour chaque note dans notes", nameTok);
+        const names = [];
+        while (peek() && peek().type === "IDENT" && String(peek().value).toLowerCase() !== "dans") {
+          names.push(next().value);
         }
-        next();
+        if (!names.length) {
+          fail("après pour chaque, j'attendais un nom. Essaie : pour chaque note dans notes", peek());
+        }
         expectValue("dans");
         const list = parseExpression();
         const body = parseBlock(["fin"]);
         expectValue("fin");
-        return { type: "pour_chaque", name: nameTok.value, list, body, ...loc(t) };
+        return { type: "pour_chaque", name: names[0], names, list, body, ...loc(t) };
       }
       const nameTok = peek();
       if (!nameTok || nameTok.type !== "IDENT") {
@@ -1268,6 +1284,23 @@ function createRuntime(ast, options = {}) {
     return sameValue(a, b);
   }
 
+  function bindChaque(names, item, node) {
+    const keys = names && names.length ? names : [node && node.name];
+    if (keys.length === 1) {
+      setVar(keys[0], item);
+      return;
+    }
+    const seq = asSeq(item);
+    if (!seq || seq.length !== keys.length) {
+      throw new T4C2Error(
+        `pour chaque attend ${keys.length} valeurs par élément. Essaie : apparie noms notes`,
+        node && node.line,
+        node && node.col,
+      );
+    }
+    keys.forEach((name, idx) => setVar(name, seq[idx]));
+  }
+
   function applyAny(fn, args, node) {
     if (fn && fn.__t4c2 === "builtin_fn") {
       return evalExpr({
@@ -1524,8 +1557,17 @@ function createRuntime(ast, options = {}) {
           if (expr.name === "plafond") return Math.ceil(x);
           if (expr.name === "troncature") return Math.trunc(x);
         }
-        if (imported.has("temps") && expr.name === "maintenant") {
-          return Date.now();
+        if (imported.has("temps") && (expr.name === "maintenant" || expr.name === "annee" || expr.name === "mois" || expr.name === "jour" || expr.name === "heure")) {
+          if (expr.name === "maintenant") return Date.now();
+          const t = args.length ? num(args[0], expr.name, expr) : Date.now();
+          const d = new Date(t);
+          if (!Number.isFinite(d.getTime())) {
+            throw new T4C2Error(`${expr.name} attend un temps valide.`, expr.line, expr.col);
+          }
+          if (expr.name === "annee") return d.getFullYear();
+          if (expr.name === "mois") return d.getMonth() + 1;
+          if (expr.name === "jour") return d.getDate();
+          return d.getHours();
         }
         const fn = functions.get(expr.name);
         if (!fn) {
@@ -1624,6 +1666,64 @@ function createRuntime(ast, options = {}) {
           }
           return seq.slice().reverse();
         }
+        if (op === "numerote") {
+          const seq = asSeq(args[0]);
+          if (!seq) throw new T4C2Error("numerote attend une liste, un nuple ou un ensemble.", expr.line, expr.col);
+          return seq.map((x, i) => makeNuple([i + 1, x]));
+        }
+        if (op === "apparie") {
+          const seqs = args.map((a) => asSeq(a));
+          if (seqs.some((s) => !s)) {
+            throw new T4C2Error("apparie attend des listes, nuples ou ensembles.", expr.line, expr.col);
+          }
+          if (seqs.length < 2) {
+            throw new T4C2Error("apparie attend au moins deux listes.", expr.line, expr.col);
+          }
+          const n = Math.min(...seqs.map((s) => s.length));
+          const out = [];
+          for (let i = 0; i < n; i++) out.push(makeNuple(seqs.map((s) => s[i])));
+          return out;
+        }
+        if (op === "somme" || op === "moyenne") {
+          let nums;
+          if (args.length === 1 && asSeq(args[0])) {
+            nums = asSeq(args[0]).map((v) => num(v, op, expr));
+          } else {
+            nums = args.map((v) => num(v, op, expr));
+          }
+          if (op === "somme") return nums.reduce((a, b) => a + b, 0);
+          if (!nums.length) {
+            throw new T4C2Error("moyenne attend au moins un nombre.", expr.line, expr.col);
+          }
+          return nums.reduce((a, b) => a + b, 0) / nums.length;
+        }
+        if (op === "compte") {
+          if (typeof args[0] === "string") {
+            const needle = String(args[1]);
+            if (!needle) return args[0].length + 1;
+            return args[0].split(needle).length - 1;
+          }
+          const seq = asSeq(args[0]);
+          if (!seq) {
+            throw new T4C2Error("compte attend un texte ou une liste.", expr.line, expr.col);
+          }
+          return seq.filter((v) => valuesEqual(v, args[1])).length;
+        }
+        if (op === "separe") {
+          const text = String(args[0]);
+          const sep = String(args[1]);
+          if (sep === "") return text.split("");
+          return text.split(sep);
+        }
+        if (op === "joint") {
+          const seq = asSeq(args[1]);
+          if (!seq) {
+            throw new T4C2Error("joint attend un séparateur puis une liste. Essaie : joint «, » noms", expr.line, expr.col);
+          }
+          return seq.map((v) => formatValue(v)).join(String(args[0]));
+        }
+        if (op === "commence_par") return String(args[0]).startsWith(String(args[1]));
+        if (op === "finit_par") return String(args[0]).endsWith(String(args[1]));
         if (op === "plage") {
           const a = Math.floor(num(args[0], op, expr));
           const b = args[1] === undefined ? a : Math.floor(num(args[1], op, expr));
@@ -1884,7 +1984,7 @@ function createRuntime(ast, options = {}) {
         } else if (f.kind === "pour_chaque") {
           f.idx += 1;
           if (f.idx < f.items.length) {
-            setVar(f.name, f.items[f.idx]);
+            bindChaque(f.names, f.items[f.idx], f.node);
             f.i = 0;
             continue;
           }
@@ -1917,9 +2017,9 @@ function createRuntime(ast, options = {}) {
       case "aide": {
         [
           "T4C2 — affiche, soit, fixe, si, selon, pour, pour chaque, repete, tant_que, essaie, enfin",
-          "Calcul : ajoute soustrait multiplie divise modulo puissance racine arrondis aleatoire minimum maximum absolu",
-          "Texte : contient coupe remplace majuscule minuscule forme  ·  Nombre : 3,14  ·  rien",
-          "Données : liste nuple ensemble fiche plage carte filtre reduis cles valeurs",
+          "Calcul : ajoute soustrait multiplie divise modulo puissance racine arrondis aleatoire minimum maximum absolu somme moyenne",
+          "Texte : contient coupe remplace separe joint commence_par finit_par forme  ·  Nombre : 3,14  ·  rien",
+          "Données : liste nuple ensemble fiche plage carte filtre reduis apparie numerote compte",
           "Objets : modele, nouveau, moi, sur, herite, parent, est",
           "Plus loin : fonc, applique, type_de, importe maths / temps / fichiers",
         ].forEach((line) => emit(line, false));
@@ -2032,10 +2132,12 @@ function createRuntime(ast, options = {}) {
             nodes: node.body,
             i: 0,
             name: node.name,
+            names: node.names || [node.name],
             items: list.slice(),
             idx: 0,
+            node,
           });
-          setVar(node.name, list[0]);
+          bindChaque(node.names || [node.name], list[0], node);
         }
         return { done: false, node };
       }
@@ -2410,7 +2512,7 @@ function printAst(ast, level = 0) {
         w("fin");
         break;
       case "pour_chaque":
-        w(`pour chaque ${node.name} dans ${printExpr(node.list)}`);
+        w(`pour chaque ${(node.names || [node.name]).join(" ")} dans ${printExpr(node.list)}`);
         lines.push(printAst(node.body, 0).split("\n").map((l) => (l ? "  " + l : l)).join("\n"));
         w("fin");
         break;
@@ -2495,10 +2597,19 @@ function lintT4C2(code, astReady) {
   const assigned = new Set();
   const read = new Set();
   walk(ast, (node) => {
-    if (node.type === "soit" || node.type === "fixe" || node.type === "demande" || node.type === "pour" || node.type === "pour_chaque" || node.type === "essaie") {
+    if (node.type === "soit" || node.type === "fixe" || node.type === "demande" || node.type === "pour" || node.type === "essaie") {
       assigned.add(node.name);
     }
+    if (node.type === "pour_chaque") {
+      (node.names || [node.name]).forEach((n) => assigned.add(n));
+    }
     if (node.type === "var" || node.type === "fnref") read.add(node.name);
+    if (node.type === "forme" && node.tpl && node.tpl.type === "literal") {
+      const re = /\{([A-Za-z_éèêëàâùûôîïüçÉÈÊËÀÂÙÛÔÎÏÜÇ][A-Za-z0-9_éèêëàâùûôîïüçÉÈÊËÀÂÙÛÔÎÏÜÇ]*)\}/g;
+      let m;
+      const src = String(node.tpl.value);
+      while ((m = re.exec(src)) !== null) read.add(m[1]);
+    }
     if (node.type === "tant_que" && node.cond && node.cond.type === "var") {
       let mutated = false;
       walk(node.body, (inner) => {
@@ -2644,6 +2755,13 @@ fin
 soit mac nouveau Produit «Mac» 4000
 affiche sur mac etiquette
 `,
+  apparie: `// Apparie — comme zip en Python
+soit noms liste «Ada» «Teo»
+soit notes liste 18 16
+pour chaque nom note dans apparie noms notes
+  affiche forme «{nom} {note}»
+fin
+`,
   tortue: `// Carré
 couleur «bleu»
 repete 4
@@ -2668,7 +2786,8 @@ const MISSIONS = {
   selon: { title: "Selon", goal: "Selon un jour, affiche début ou autre.", expect: ["début"], next: "applique" },
   applique: { title: "Applique", goal: "Une fonction stockée qui affiche 42.", expect: ["42"], next: "carte" },
   carte: { title: "Carte", goal: "Double 1 à 4 avec carte. Affiche [2 4 6 8].", expect: ["[2 4 6 8]"], next: "modele" },
-  modele: { title: "Modèle", goal: "Un produit qui affiche Mac : 4000.", expect: ["Mac : 4000"], next: "tortue" },
+  modele: { title: "Modèle", goal: "Un produit qui affiche Mac : 4000.", expect: ["Mac : 4000"], next: "apparie" },
+  apparie: { title: "Apparie", goal: "Relie deux listes. Affiche Ada 18 puis Teo 16.", expect: ["Ada 18", "Teo 16"], next: "tortue" },
   tortue: { title: "Tortue", goal: "Dessine un carré : 4 fois avance et tourne.", expect: null, turtle: 4, next: null },
 };
 
@@ -2676,7 +2795,7 @@ function highlightHtml(code, escapeHtml) {
   const esc = escapeHtml || ((s) =>
     String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
   const src = String(code);
-  const re = /(\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape|enfin|modele|herite)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|ensemble|nuple|plage|carte|filtre|reduis|forme|fusionne|unique|inverse|cles|valeurs|tous|un_parmi|nouveau|sur|parent|moi|est|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
+  const re = /(\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape|enfin|modele|herite)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|ensemble|nuple|plage|carte|filtre|reduis|forme|fusionne|unique|inverse|cles|valeurs|tous|un_parmi|apparie|numerote|somme|moyenne|separe|joint|commence_par|finit_par|compte|nouveau|sur|parent|moi|est|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
   let result = "";
   let last = 0;
   let m;

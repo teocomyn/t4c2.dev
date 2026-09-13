@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.0 — 2026-09-13
+
+- Itération : `apparie`, `numerote`, `pour chaque a b dans`.
+- Nombres : `somme`, `moyenne`, `compte`.
+- Texte : `separe`, `joint`, `commence_par`, `finit_par`.
+- Temps : `annee`, `mois`, `jour`, `heure`.
+
 ## 1.7.0 — 2026-09-13
 
 - Objets : `modele`, `nouveau`, `moi`, `sur`, `champ` / `pose_champ`.

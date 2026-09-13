@@ -2,7 +2,7 @@
   "name": "t4c2",
   "displayName": "T4C2",
   "description": "Le langage de programmation en français.",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "publisher": "teocomyn",
   "engines": {
     "vscode": "^1.80.0"
