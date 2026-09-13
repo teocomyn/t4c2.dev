@@ -1,4 +1,4 @@
-const CACHE = "t4c2-1.6.0";
+const CACHE = "t4c2-1.7.0";
 const ASSETS = [
   "./",
   "./index.html",

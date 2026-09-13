@@ -131,6 +131,29 @@ enfin
 fin</pre>
     <p><code>nuple</code> ne change pas. <code>ensemble</code> oublie les doublons. <code>carte</code> / <code>filtre</code> / <code>reduis</code> prennent une fonction. <code>forme</code> remplace <code>{nom}</code>. <code>tous</code> <code>un_parmi</code> <code>unique</code> <code>inverse</code> <code>valeurs</code>.</p>
 
+    <h2>Modèles</h2>
+    <pre>modele Produit
+  fonc init nom prix
+    pose_champ moi nom nom
+    pose_champ moi prix prix
+  fin
+  fonc etiquette
+    retourne forme «{nom} : {prix}»
+  fin
+fin
+soit mac nouveau Produit «Mac» 4000
+affiche champ mac nom
+affiche sur mac etiquette
+affiche est mac Produit
+
+modele Chien herite Animal
+  fonc init nom race
+    parent init nom
+    pose_champ moi race race
+  fin
+fin</pre>
+    <p><code>nouveau</code> appelle <code>init</code> s’il existe. <code>sur</code> lance une méthode. <code>moi</code> est l’objet. <code>parent</code> appelle le modèle parent. <code>est</code> suit la chaîne <code>herite</code>. <code>fiche</code> reste pour les données plates.</p>
+
     <h2>Fonctions comme valeurs</h2>
     <pre>soit double fonc x
   retourne multiplie x 2
@@ -158,7 +181,7 @@ remplis</pre>
     <p>Séance imprimable : <a href="fiche.html">fiche prof 45 min</a>. Playground intégré : <code>t4c2_web.html?embed=1</code>.</p>
 
     <footer class="brand-foot">
-      <span>T4C2 1.6 · même moteur partout</span>
+      <span>T4C2 1.7 · même moteur partout</span>
       <a href="t4c2_web.html">Ouvrir le playground</a>
     </footer>
   </div>

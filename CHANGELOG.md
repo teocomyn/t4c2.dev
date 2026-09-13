@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.0 — 2026-09-13
+
+- Objets : `modele`, `nouveau`, `moi`, `sur`, `champ` / `pose_champ`.
+- Héritage : `herite`, `parent`, `est`.
+- `type_de` sur un objet rend le nom du modèle. `fiche` reste pour les données plates.
+
 ## 1.6.0 — 2026-09-13
 
 - Cœur inspiré de Python, en français préfixe : `ensemble`, `nuple`, `plage`.

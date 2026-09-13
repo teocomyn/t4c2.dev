@@ -2,12 +2,13 @@
 // T4C2 — Langage de programmation en français
 // Un seul moteur : navigateur + Node. Pas d'effet de bord à l'import.
 
-const VERSION = "1.6.0";
+const VERSION = "1.7.0";
 
 const STMT = new Set([
   "affiche", "soit", "set", "fixe", "aide", "si", "alors", "sinon", "sinon_si", "fin",
   "repete", "tant_que", "faire", "pour", "interrompre", "continuer",
   "fonc", "retourne", "demande", "pousse", "retire", "pose_element", "pose_champ", "insere",
+  "modele", "herite",
   "avance", "tourne", "leve", "pose", "couleur", "aller_a", "remplis",
   "selon", "cas", "essaie", "attrape", "enfin", "importe", "attends",
   "lis_fichier", "ecris_fichier",
@@ -30,6 +31,7 @@ const SPECIAL_EXPR = new Set([
   "aleatoire", "liste", "fiche", "vrai", "faux", "rien", "minimum", "maximum",
   "coupe", "remplace", "champ", "applique",
   "ensemble", "nuple", "plage", "carte", "filtre", "reduis", "forme", "tous", "un_parmi",
+  "nouveau", "sur", "parent", "moi", "est",
 ]);
 
 const RESERVED = new Set([
@@ -41,7 +43,7 @@ const T4C2_KEYWORDS = [...RESERVED].sort();
 const T4C2_CONTROL = [
   "si", "alors", "sinon", "sinon_si", "fin", "repete", "tant_que",
   "faire", "pour", "fonc", "retourne", "interrompre", "continuer",
-  "selon", "cas", "essaie", "attrape", "enfin",
+  "selon", "cas", "essaie", "attrape", "enfin", "modele", "herite",
 ];
 
 const MAX_ITERATIONS = 10000;
@@ -84,6 +86,29 @@ function ficheKeys(v) {
 
 function isFonc(v) {
   return !!v && typeof v === "object" && v.__t4c2 === "fonc";
+}
+
+function isObjet(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v) && v.__t4c2 === "objet";
+}
+
+function makeObjet(modele) {
+  const o = Object.create(null);
+  o.__t4c2 = "objet";
+  o.__modele = modele;
+  return o;
+}
+
+function objetKeys(v) {
+  return Object.keys(v).filter((k) => k !== "__t4c2" && k !== "__modele");
+}
+
+function isRecord(v) {
+  return isFiche(v) || isObjet(v);
+}
+
+function recordKeys(v) {
+  return isObjet(v) ? objetKeys(v) : ficheKeys(v);
 }
 
 function makeFonc(name, params, body) {
@@ -413,22 +438,28 @@ function loc(tok) {
 
 function collectArities(tokens) {
   const found = new Map();
+  const open = [];
   for (let k = 0; k < tokens.length; k++) {
-    if (tokens[k].value === "fonc" && tokens[k + 1] && tokens[k + 1].type === "IDENT") {
-      const prev = tokens[k - 1];
-      if (prev && (prev.type === "IDENT" || prev.value === "applique" || prev.type === "LPAREN")) {
-        continue;
+    const v = tokens[k].value;
+    if (v === "si" || v === "repete" || v === "tant_que" || v === "pour" || v === "fonc" || v === "selon" || v === "essaie" || v === "modele") {
+      if (v === "fonc" && tokens[k + 1] && tokens[k + 1].type === "IDENT") {
+        const prev = tokens[k - 1];
+        const inModele = open[open.length - 1] === "modele";
+        if (!inModele && !(prev && (prev.type === "IDENT" || prev.value === "applique" || prev.type === "LPAREN"))) {
+          let n = 0;
+          let j = k + 2;
+          while (tokens[j] && tokens[j].type === "IDENT") {
+            n++;
+            j++;
+          }
+          found.set(tokens[k + 1].value, n);
+        }
       }
-      const name = tokens[k + 1].value;
-      let n = 0;
-      let j = k + 2;
-      while (tokens[j] && tokens[j].type === "IDENT") {
-        n++;
-        j++;
-      }
-      found.set(name, n);
+      open.push(v);
+    } else if (v === "fin") {
+      open.pop();
     }
-    if (tokens[k].value === "importe" && tokens[k + 1] && tokens[k + 1].type === "IDENT") {
+    if (v === "importe" && tokens[k + 1] && tokens[k + 1].type === "IDENT") {
       const mod = tokens[k + 1].value.toLowerCase();
       if (mod === "maths") Object.entries(MATHS_ARITY).forEach(([n, a]) => found.set(n, a));
       if (mod === "temps") Object.entries(TEMPS_ARITY).forEach(([n, a]) => found.set(n, a));
@@ -443,6 +474,7 @@ function parser(tokens, { functions } = {}) {
     if (!arities.has(name)) arities.set(name, n);
   });
   let i = 0;
+  let inModele = false;
 
   const peek = () => tokens[i];
   const at = (type, value) => {
@@ -542,6 +574,54 @@ function parser(tokens, { functions } = {}) {
     if (t.value === "rien") {
       next();
       return { type: "literal", value: null, ...loc(t) };
+    }
+    if (t.value === "moi") {
+      next();
+      return { type: "var", name: "moi", ...loc(t) };
+    }
+    if (t.value === "nouveau") {
+      next();
+      const nameTok = peek();
+      if (!nameTok || nameTok.type !== "IDENT") {
+        fail("après nouveau, j'attendais un modèle. Essaie : nouveau Produit «Mac» 4000", nameTok);
+      }
+      next();
+      const args = [];
+      while (isExprStart(peek()) && peek().value !== "fonc") args.push(parseExpression(depth + 1));
+      return { type: "nouveau", name: nameTok.value, args, ...loc(t) };
+    }
+    if (t.value === "sur") {
+      next();
+      const target = parseExpression(depth + 1);
+      const meth = peek();
+      if (!meth || meth.type !== "IDENT") {
+        fail("après sur, j'attendais une méthode. Essaie : sur mac etiquette", meth);
+      }
+      next();
+      const args = [];
+      while (isExprStart(peek()) && peek().value !== "fonc") args.push(parseExpression(depth + 1));
+      return { type: "sur", target, method: meth.value, args, ...loc(t) };
+    }
+    if (t.value === "parent") {
+      next();
+      const meth = peek();
+      if (!meth || meth.type !== "IDENT") {
+        fail("après parent, j'attendais une méthode. Essaie : parent init nom", meth);
+      }
+      next();
+      const args = [];
+      while (isExprStart(peek()) && peek().value !== "fonc") args.push(parseExpression(depth + 1));
+      return { type: "parent_call", method: meth.value, args, ...loc(t) };
+    }
+    if (t.value === "est") {
+      next();
+      const target = parseExpression(depth + 1);
+      const nameTok = peek();
+      if (!nameTok || nameTok.type !== "IDENT") {
+        fail("après est, j'attendais un modèle. Essaie : est mac Produit", nameTok);
+      }
+      next();
+      return { type: "est", target, name: nameTok.value, ...loc(t) };
     }
     if (t.value === "fonc") {
       return parseFoncExpr();
@@ -820,6 +900,34 @@ function parser(tokens, { functions } = {}) {
       expectValue("fin");
       return { type: "pour", name: nameTok.value, from, to, body, ...loc(t) };
     }
+    if (t.value === "modele") {
+      next();
+      const nameTok = peek();
+      if (!nameTok || nameTok.type !== "IDENT") {
+        fail("après modele, j'attendais un nom. Essaie : modele Produit", nameTok);
+      }
+      next();
+      let parent = null;
+      if (at("KEYWORD", "herite")) {
+        next();
+        const p = peek();
+        if (!p || p.type !== "IDENT") {
+          fail("après herite, j'attendais un modèle. Essaie : modele Chien herite Animal", p);
+        }
+        parent = next().value;
+      }
+      inModele = true;
+      const methods = [];
+      while (peek() && peek().type !== "EOF" && peek().value !== "fin") {
+        if (peek().value !== "fonc") {
+          fail("dans un modele, j'attendais fonc … fin", peek());
+        }
+        methods.push(parseInstruction());
+      }
+      inModele = false;
+      expectValue("fin");
+      return { type: "modele", name: nameTok.value, parent, methods, ...loc(t) };
+    }
     if (t.value === "fonc") {
       next();
       const nameTok = peek();
@@ -829,7 +937,7 @@ function parser(tokens, { functions } = {}) {
       next();
       const params = [];
       while (peek() && peek().type === "IDENT") params.push(next().value);
-      arities.set(nameTok.value, params.length);
+      if (!inModele) arities.set(nameTok.value, params.length);
       const body = parseBlock(["fin"]);
       expectValue("fin");
       return { type: "fonc", name: nameTok.value, params, body, ...loc(t) };
@@ -936,6 +1044,10 @@ function formatValue(val) {
   if (Array.isArray(val)) return `[${val.map(formatValue).join(" ")}]`;
   if (isNuple(val)) return `(${val.items.map(formatValue).join(" ")})`;
   if (isEnsemble(val)) return `#{${val.items.map(formatValue).join(" ")}}`;
+  if (isObjet(val)) {
+    const fields = objetKeys(val).map((k) => `${k} ${formatValue(val[k])}`).join(" ");
+    return fields ? `${val.__modele} {${fields}}` : `${val.__modele} {}`;
+  }
   if (isFiche(val)) {
     return `{${ficheKeys(val).map((k) => `${k} ${formatValue(val[k])}`).join(" ")}}`;
   }
@@ -1007,12 +1119,52 @@ function createRuntime(ast, options = {}) {
     }
   }
 
+  const modeles = new Map();
+  let methodOwner = null;
+
+  function registerModele(node) {
+    if (node.parent && !modeles.has(node.parent)) {
+      throw new T4C2Error(
+        `le modèle « ${node.parent} » n'existe pas encore. Déclare-le avant « ${node.name} ».`,
+        node.line,
+        node.col,
+      );
+    }
+    const methods = new Map();
+    (node.methods || []).forEach((m) => {
+      methods.set(m.name, makeFonc(m.name, m.params, m.body));
+    });
+    modeles.set(node.name, { name: node.name, parent: node.parent || null, methods });
+  }
+
+  function lookupMethod(startName, method) {
+    let n = startName;
+    while (n) {
+      const spec = modeles.get(n);
+      if (!spec) break;
+      if (spec.methods.has(method)) return { fn: spec.methods.get(method), owner: n };
+      n = spec.parent;
+    }
+    return null;
+  }
+
+  function isKind(obj, name) {
+    let n = obj && obj.__modele;
+    while (n) {
+      if (n === name) return true;
+      const spec = modeles.get(n);
+      n = spec ? spec.parent : null;
+    }
+    return false;
+  }
+
   walkNodes(ast, (node) => {
     if (node.type === "fonc") functions.set(node.name, makeFonc(node.name, node.params, node.body));
     if (node.type === "importe") applyImport(node.name, node);
+    if (node.type === "modele") registerModele(node);
   });
 
-  const body = ast.filter((n) => n.type !== "fonc" && n.type !== "importe");
+  const body = ast.filter((n) => n.type !== "fonc" && n.type !== "importe" && n.type !== "modele");
   const frames = [{ kind: "block", nodes: body, i: 0, scoped: false }];
 
   function pushScope() {
@@ -1053,6 +1205,12 @@ function createRuntime(ast, options = {}) {
     if (name === "result") return global.result;
     for (let s = scopes.length - 1; s >= 0; s--) {
       if (Object.prototype.hasOwnProperty.call(scopes[s], name)) return scopes[s][name];
+    }
+    for (let s = scopes.length - 1; s >= 0; s--) {
+      const self = scopes[s].moi;
+      if (isObjet(self) && name !== "__t4c2" && name !== "__modele" && Object.prototype.hasOwnProperty.call(self, name)) {
+        return self[name];
+      }
     }
     throw new T4C2Error(
       `la variable « ${name} » n'existe pas encore. Essaie : soit ${name} 0`,
@@ -1121,6 +1279,49 @@ function createRuntime(ast, options = {}) {
       });
     }
     return callUserFn(fn, args, node);
+  }
+
+  function callMethod(obj, fn, args, node, ownerName) {
+    const prev = methodOwner;
+    methodOwner = ownerName || (obj && obj.__modele) || null;
+    try {
+      if (!isFonc(fn)) {
+        throw new T4C2Error(
+          `sur attend une méthode. Tu as donné ${formatValue(fn)}.`,
+          node && node.line,
+          node && node.col,
+        );
+      }
+      if (args.length !== fn.params.length) {
+        throw new T4C2Error(
+          `« ${fn.name || "méthode"} » attend ${fn.params.length} valeur(s), pas ${args.length}.`,
+          node && node.line,
+          node && node.col,
+        );
+      }
+      const local = { moi: obj };
+      fn.params.forEach((p, idx) => {
+        local[p] = args[idx];
+      });
+      scopes.push(local);
+      constants.push(new Set());
+      const owner = { _return: undefined };
+      const fnFrames = [{ kind: "fn", nodes: fn.body, i: 0 }];
+      try {
+        while (fnFrames.length) {
+          const r = stepFrames(fnFrames, owner);
+          if (r.done || r.returned) break;
+        }
+      } finally {
+        scopes.pop();
+        constants.pop();
+      }
+      const ret = owner._return !== undefined ? owner._return : global.result;
+      global.result = ret;
+      return ret;
+    } finally {
+      methodOwner = prev;
+    }
   }
 
   function callUserFn(fn, args, node) {
@@ -1227,10 +1428,10 @@ function createRuntime(ast, options = {}) {
       }
       case "champ": {
         const target = evalExpr(expr.target);
-        if (!isFiche(target)) {
-          throw new T4C2Error("champ attend une fiche. Essaie : soit joueur fiche nom «Léa»", expr.line, expr.col);
+        if (!isRecord(target)) {
+          throw new T4C2Error("champ attend une fiche ou un objet. Essaie : soit joueur fiche nom «Léa»", expr.line, expr.col);
         }
-        if (expr.key === "__t4c2" || !Object.prototype.hasOwnProperty.call(target, expr.key)) {
+        if (expr.key === "__t4c2" || expr.key === "__modele" || !Object.prototype.hasOwnProperty.call(target, expr.key)) {
           throw new T4C2Error(`le champ « ${expr.key} » n'existe pas.`, expr.line, expr.col);
         }
         return target[expr.key];
@@ -1251,6 +1452,67 @@ function createRuntime(ast, options = {}) {
         return { __t4c2: "builtin_fn", name: expr.name };
       case "applique":
         return applyAny(evalExpr(expr.fn), expr.args.map(evalExpr), expr);
+      case "nouveau": {
+        const spec = modeles.get(expr.name);
+        if (!spec) {
+          throw new T4C2Error(
+            `le modèle « ${expr.name} » n'existe pas. Déclare-le : modele ${expr.name}`,
+            expr.line,
+            expr.col,
+          );
+        }
+        const obj = makeObjet(spec.name);
+        const found = lookupMethod(spec.name, "init");
+        if (found) {
+          callMethod(obj, found.fn, expr.args.map(evalExpr), expr, found.owner);
+        } else if (expr.args.length) {
+          throw new T4C2Error(
+            `« ${spec.name} » n'a pas de fonc init, donc nouveau n'attend aucune valeur.`,
+            expr.line,
+            expr.col,
+          );
+        }
+        return obj;
+      }
+      case "sur": {
+        const obj = evalExpr(expr.target);
+        if (!isObjet(obj)) {
+          throw new T4C2Error("sur attend un objet créé avec nouveau.", expr.line, expr.col);
+        }
+        const found = lookupMethod(obj.__modele, expr.method);
+        if (!found) {
+          throw new T4C2Error(
+            `« ${obj.__modele} » n'a pas de méthode « ${expr.method} ».`,
+            expr.line,
+            expr.col,
+          );
+        }
+        return callMethod(obj, found.fn, expr.args.map(evalExpr), expr, found.owner);
+      }
+      case "parent_call": {
+        const self = getVar("moi", expr);
+        if (!isObjet(self)) {
+          throw new T4C2Error("parent s'utilise dans une méthode.", expr.line, expr.col);
+        }
+        const here = methodOwner || self.__modele;
+        const spec = modeles.get(here);
+        if (!spec || !spec.parent) {
+          throw new T4C2Error(`« ${here} » n'a pas de parent.`, expr.line, expr.col);
+        }
+        const found = lookupMethod(spec.parent, expr.method);
+        if (!found) {
+          throw new T4C2Error(
+            `le parent n'a pas de méthode « ${expr.method} ».`,
+            expr.line,
+            expr.col,
+          );
+        }
+        return callMethod(self, found.fn, expr.args.map(evalExpr), expr, found.owner);
+      }
+      case "est": {
+        const obj = evalExpr(expr.target);
+        return isObjet(obj) && isKind(obj, expr.name);
+      }
       case "appel": {
         const args = expr.args.map(evalExpr);
         if (imported.has("maths") && Object.prototype.hasOwnProperty.call(MATHS_ARITY, expr.name)) {
@@ -1320,7 +1582,7 @@ function createRuntime(ast, options = {}) {
         if (op === "longueur") {
           const seq = asSeq(args[0]);
           if (seq) return seq.length;
-          if (isFiche(args[0])) return ficheKeys(args[0]).length;
+          if (isRecord(args[0])) return recordKeys(args[0]).length;
           return String(args[0]).length;
         }
         if (op === "taille") {
@@ -1338,16 +1600,16 @@ function createRuntime(ast, options = {}) {
           return op === "premier" ? seq[0] : seq[seq.length - 1];
         }
         if (op === "cles") {
-          if (!isFiche(args[0])) {
-            throw new T4C2Error("cles attend une fiche.", expr.line, expr.col);
+          if (!isRecord(args[0])) {
+            throw new T4C2Error("cles attend une fiche ou un objet.", expr.line, expr.col);
           }
-          return ficheKeys(args[0]);
+          return recordKeys(args[0]);
         }
         if (op === "valeurs") {
-          if (!isFiche(args[0])) {
-            throw new T4C2Error("valeurs attend une fiche.", expr.line, expr.col);
+          if (!isRecord(args[0])) {
+            throw new T4C2Error("valeurs attend une fiche ou un objet.", expr.line, expr.col);
           }
-          return ficheKeys(args[0]).map((k) => args[0][k]);
+          return recordKeys(args[0]).map((k) => args[0][k]);
         }
         if (op === "unique") {
           const seq = asSeq(args[0]);
@@ -1415,7 +1677,7 @@ function createRuntime(ast, options = {}) {
           const seq = asSeq(args[0]);
           if (seq) return seq.length === 0;
           if (typeof args[0] === "string") return args[0].length === 0;
-          if (isFiche(args[0])) return ficheKeys(args[0]).length === 0;
+          if (isRecord(args[0])) return recordKeys(args[0]).length === 0;
           return args[0] === null || args[0] === "";
         }
         if (op === "copie") {
@@ -1427,7 +1689,12 @@ function createRuntime(ast, options = {}) {
             ficheKeys(args[0]).forEach((k) => { o[k] = args[0][k]; });
             return o;
           }
-          throw new T4C2Error("copie attend une liste, un nuple, un ensemble ou une fiche.", expr.line, expr.col);
+          if (isObjet(args[0])) {
+            const o = makeObjet(args[0].__modele);
+            objetKeys(args[0]).forEach((k) => { o[k] = args[0][k]; });
+            return o;
+          }
+          throw new T4C2Error("copie attend une liste, un nuple, un ensemble, une fiche ou un objet.", expr.line, expr.col);
         }
         if (op === "type_de") {
           if (args[0] === null || args[0] === undefined) return "rien";
@@ -1438,6 +1705,7 @@ function createRuntime(ast, options = {}) {
           if (isNuple(args[0])) return "nuple";
           if (isEnsemble(args[0])) return "ensemble";
           if (isFiche(args[0])) return "fiche";
+          if (isObjet(args[0])) return args[0].__modele;
           if (isFonc(args[0])) return "fonc";
           return "inconnu";
         }
@@ -1652,6 +1920,7 @@ function createRuntime(ast, options = {}) {
           "Calcul : ajoute soustrait multiplie divise modulo puissance racine arrondis aleatoire minimum maximum absolu",
           "Texte : contient coupe remplace majuscule minuscule forme  ·  Nombre : 3,14  ·  rien",
           "Données : liste nuple ensemble fiche plage carte filtre reduis cles valeurs",
+          "Objets : modele, nouveau, moi, sur, herite, parent, est",
           "Plus loin : fonc, applique, type_de, importe maths / temps / fichiers",
         ].forEach((line) => emit(line, false));
         return { done: false, node };
@@ -1837,10 +2106,10 @@ function createRuntime(ast, options = {}) {
       }
       case "pose_champ": {
         const target = evalExpr(node.target);
-        if (!isFiche(target)) {
-          throw new T4C2Error("pose_champ attend une fiche.", node.line, node.col);
+        if (!isRecord(target)) {
+          throw new T4C2Error("pose_champ attend une fiche ou un objet.", node.line, node.col);
         }
-        if (node.key === "__t4c2") {
+        if (node.key === "__t4c2" || node.key === "__modele") {
           throw new T4C2Error("ce nom de champ est interdit.", node.line, node.col);
         }
         target[node.key] = evalExpr(node.expr);
@@ -1947,6 +2216,9 @@ function createRuntime(ast, options = {}) {
       }
       case "fonc":
         functions.set(node.name, makeFonc(node.name, node.params, node.body));
+        return { done: false, node };
+      case "modele":
+        registerModele(node);
         return { done: false, node };
       default:
         throw new T4C2Error(`instruction inconnue : ${node.type}`, node.line, node.col);
@@ -2192,7 +2464,7 @@ function formatT4C2(code) {
     if (closer) depth = Math.max(0, depth - 1);
     out.push("  ".repeat(depth) + trimmed);
     if (/^(sinon|sinon_si|cas|attrape|enfin)\b/.test(bare)) depth += 1;
-    else if (/^(si|repete|tant_que|pour|fonc|selon|essaie)\b/.test(bare)) depth += 1;
+    else if (/^(si|repete|tant_que|pour|fonc|selon|essaie|modele)\b/.test(bare)) depth += 1;
   }
   return out.join("\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]+$/gm, "").replace(/\s+$/, "") + "\n";
 }
@@ -2359,6 +2631,19 @@ fonc double x
 fin
 affiche carte double plage 1 4
 `,
+  modele: `// Modèle — comme une classe Python
+modele Produit
+  fonc init nom prix
+    pose_champ moi nom nom
+    pose_champ moi prix prix
+  fin
+  fonc etiquette
+    retourne forme «{nom} : {prix}»
+  fin
+fin
+soit mac nouveau Produit «Mac» 4000
+affiche sur mac etiquette
+`,
   tortue: `// Carré
 couleur «bleu»
 repete 4
@@ -2382,7 +2667,8 @@ const MISSIONS = {
   texte: { title: "Texte", goal: "Majuscule, contient, coupe.", expect: ["T4C2", "vrai", "bon"], next: "selon" },
   selon: { title: "Selon", goal: "Selon un jour, affiche début ou autre.", expect: ["début"], next: "applique" },
   applique: { title: "Applique", goal: "Une fonction stockée qui affiche 42.", expect: ["42"], next: "carte" },
-  carte: { title: "Carte", goal: "Double 1 à 4 avec carte. Affiche [2 4 6 8].", expect: ["[2 4 6 8]"], next: "tortue" },
+  carte: { title: "Carte", goal: "Double 1 à 4 avec carte. Affiche [2 4 6 8].", expect: ["[2 4 6 8]"], next: "modele" },
+  modele: { title: "Modèle", goal: "Un produit qui affiche Mac : 4000.", expect: ["Mac : 4000"], next: "tortue" },
   tortue: { title: "Tortue", goal: "Dessine un carré : 4 fois avance et tourne.", expect: null, turtle: 4, next: null },
 };
 
@@ -2390,7 +2676,7 @@ function highlightHtml(code, escapeHtml) {
   const esc = escapeHtml || ((s) =>
     String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
   const src = String(code);
-  const re = /(\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape|enfin)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|ensemble|nuple|plage|carte|filtre|reduis|forme|fusionne|unique|inverse|cles|valeurs|tous|un_parmi|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
+  const re = /(\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape|enfin|modele|herite)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|ensemble|nuple|plage|carte|filtre|reduis|forme|fusionne|unique|inverse|cles|valeurs|tous|un_parmi|nouveau|sur|parent|moi|est|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
   let result = "";
   let last = 0;
   let m;
@@ -2468,7 +2754,7 @@ function runCli(argv) {
       const tokens = lexer(src);
       let open = 0;
       for (const t of tokens) {
-        if (t.value === "si" || t.value === "repete" || t.value === "tant_que" || t.value === "pour" || t.value === "fonc" || t.value === "selon" || t.value === "essaie") open++;
+        if (t.value === "si" || t.value === "repete" || t.value === "tant_que" || t.value === "pour" || t.value === "fonc" || t.value === "selon" || t.value === "essaie" || t.value === "modele") open++;
         if (t.value === "fin") open--;
       }
       return open > 0;

@@ -416,9 +416,63 @@ fin`),
   );
 });
 
+test("modele nouveau sur", () => {
+  assert.deepEqual(
+    out(`modele Produit
+  fonc init nom prix
+    pose_champ moi nom nom
+    pose_champ moi prix prix
+  fin
+  fonc etiquette
+    retourne forme «{nom} : {prix}»
+  fin
+fin
+soit mac nouveau Produit «Mac» 4000
+affiche champ mac nom
+affiche sur mac etiquette
+affiche type_de mac
+affiche est mac Produit`),
+    ["Mac", "Mac : 4000", "Produit", "vrai"],
+  );
+});
+
+test("modele herite parent", () => {
+  assert.deepEqual(
+    out(`modele Animal
+  fonc init nom
+    pose_champ moi nom nom
+  fin
+  fonc parle
+    retourne forme «{nom}»
+  fin
+fin
+modele Chien herite Animal
+  fonc init nom
+    parent init nom
+    pose_champ moi race «berger»
+  fin
+  fonc parle
+    retourne forme «{nom} aboie»
+  fin
+fin
+soit rex nouveau Chien «Rex»
+affiche sur rex parle
+affiche est rex Animal
+affiche champ rex race`),
+    ["Rex aboie", "vrai", "berger"],
+  );
+});
+
 test("mission bonjour", () => {
   const { checkMission } = require("./t4c2.js");
   const r = runProgram("affiche «Bonjour T4C2»\naffiche 1");
   const c = checkMission("hello", r);
+  assert.equal(c.ok, true);
+});
+
+test("mission modele", () => {
+  const { checkMission, EXAMPLES } = require("./t4c2.js");
+  const r = runProgram(EXAMPLES.modele);
+  const c = checkMission("modele", r);
   assert.equal(c.ok, true);
 });

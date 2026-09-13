@@ -9,11 +9,11 @@
     { "name": "string.quoted.other.t4c2", "begin": "«", "end": "»" },
     {
       "name": "keyword.control.t4c2",
-      "match": "\\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape|enfin)\\b"
+      "match": "\\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape|enfin|modele|herite)\\b"
     },
     {
       "name": "keyword.other.t4c2",
-      "match": "\\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|ensemble|nuple|plage|carte|filtre|reduis|forme|fusionne|unique|inverse|cles|valeurs|tous|un_parmi|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\\b"
+      "match": "\\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|ensemble|nuple|plage|carte|filtre|reduis|forme|fusionne|unique|inverse|cles|valeurs|tous|un_parmi|nouveau|sur|parent|moi|est|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\\b"
     },
     { "name": "constant.numeric.t4c2", "match": "-?\\d+([.,]\\d+)?" }
   ]
