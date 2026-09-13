@@ -2,7 +2,7 @@
 // T4C2 — Langage de programmation en français
 // Un seul moteur : navigateur + Node. Pas d'effet de bord à l'import.
 
-const VERSION = "1.8.0";
+const VERSION = "1.9.0";
 
 const STMT = new Set([
   "affiche", "soit", "set", "fixe", "aide", "si", "alors", "sinon", "sinon_si", "fin",
@@ -12,6 +12,7 @@ const STMT = new Set([
   "avance", "tourne", "leve", "pose", "couleur", "aller_a", "remplis",
   "selon", "cas", "essaie", "attrape", "enfin", "importe", "attends",
   "lis_fichier", "ecris_fichier",
+  "passe", "lance", "verifie", "vide",
 ]);
 
 const BINARY = new Set([
@@ -20,12 +21,15 @@ const BINARY = new Set([
   "plus_grand_ou_egal", "plus_petit_ou_egal",
   "et", "ou", "concat", "element", "contient", "index_de", "fusionne",
   "separe", "joint", "commence_par", "finit_par", "compte",
+  "fois", "ou_sinon",
 ]);
 
 const UNARY = new Set([
   "non", "racine", "arrondis", "longueur", "taille", "absolu", "premier", "dernier",
-  "en_nombre", "en_texte", "est_vide", "copie", "majuscule", "minuscule", "lis_fichier",
-  "type_de", "trie", "cles", "valeurs", "unique", "inverse", "numerote",
+  "en_nombre", "en_texte", "en_entier", "en_liste", "en_nuple", "en_ensemble",
+  "est_vide", "copie", "majuscule", "minuscule", "sans_espaces", "lis_fichier",
+  "type_de", "cles", "valeurs", "unique", "inverse", "numerote",
+  "aplatis", "choisis", "melange",
 ]);
 
 const SPECIAL_EXPR = new Set([
@@ -33,7 +37,7 @@ const SPECIAL_EXPR = new Set([
   "coupe", "remplace", "champ", "applique",
   "ensemble", "nuple", "plage", "carte", "filtre", "reduis", "forme", "tous", "un_parmi",
   "nouveau", "sur", "parent", "moi", "est",
-  "apparie", "somme", "moyenne",
+  "apparie", "somme", "moyenne", "trouve", "trie",
 ]);
 
 const RESERVED = new Set([
@@ -46,6 +50,7 @@ const T4C2_CONTROL = [
   "si", "alors", "sinon", "sinon_si", "fin", "repete", "tant_que",
   "faire", "pour", "fonc", "retourne", "interrompre", "continuer",
   "selon", "cas", "essaie", "attrape", "enfin", "modele", "herite",
+  "passe", "lance", "verifie",
 ];
 
 const MAX_ITERATIONS = 10000;
@@ -55,6 +60,7 @@ const MAX_DEPTH = 64;
 
 const MATHS_ARITY = {
   sinus: 1, cosinus: 1, tangente: 1, plancher: 1, plafond: 1, troncature: 1,
+  logarithme: 1, exposant: 1, degres: 1, radians: 1,
 };
 const TEMPS_ARITY = { maintenant: 0, annee: 1, mois: 1, jour: 1, heure: 1 };
 
@@ -196,6 +202,24 @@ function safeFilePath(name, node) {
     );
   }
   return resolved;
+}
+
+function moduleFileName(name) {
+  const base = String(name || "").toLowerCase();
+  if (!/^[a-z0-9_]+$/.test(base)) return null;
+  return `${base}.t4c2`;
+}
+
+function tryReadUserModule(name) {
+  if (typeof window !== "undefined" || typeof require === "undefined") return null;
+  const file = moduleFileName(name);
+  if (!file) return null;
+  try {
+    const p = safeFilePath(file, null);
+    return require("fs").readFileSync(p, "utf8");
+  } catch {
+    return null;
+  }
 }
 
 class T4C2Error extends Error {
@@ -438,6 +462,8 @@ function loc(tok) {
   return tok ? { line: tok.line, col: tok.col } : { line: 0, col: 0 };
 }
 
+const collectingModules = new Set();
+
 function collectArities(tokens) {
   const found = new Map();
   const open = [];
@@ -465,6 +491,19 @@ function collectArities(tokens) {
       const mod = tokens[k + 1].value.toLowerCase();
       if (mod === "maths") Object.entries(MATHS_ARITY).forEach(([n, a]) => found.set(n, a));
       if (mod === "temps") Object.entries(TEMPS_ARITY).forEach(([n, a]) => found.set(n, a));
+      if (mod !== "maths" && mod !== "temps" && mod !== "fichiers" && !collectingModules.has(mod)) {
+        collectingModules.add(mod);
+        try {
+          const src = tryReadUserModule(mod);
+          if (src) {
+            collectArities(lexer(src)).forEach((n, fname) => {
+              if (!found.has(fname)) found.set(fname, n);
+            });
+          }
+        } finally {
+          collectingModules.delete(mod);
+        }
+      }
     }
   }
   return found;
@@ -653,11 +692,19 @@ function parser(tokens, { functions } = {}) {
       while (isExprStart(peek())) items.push(parseExpression(depth + 1));
       return { type: kind, items, ...loc(t) };
     }
-    if (t.value === "carte" || t.value === "filtre") {
+    if (t.value === "carte" || t.value === "filtre" || t.value === "trouve") {
       const op = next().value;
       const fn = parseCallee(depth + 1);
       const list = parseExpression(depth + 1);
       return { type: op, fn, list, ...loc(t) };
+    }
+    if (t.value === "trie") {
+      next();
+      const first = parseCallee(depth + 1);
+      if (isExprStart(peek()) && peek().value !== "fonc") {
+        return { type: "trie", fn: first, list: parseExpression(depth + 1), ...loc(t) };
+      }
+      return { type: "call", op: "trie", args: [first.type === "fnref" || first.type === "builtin_fn" ? { type: "var", name: first.name, line: first.line, col: first.col } : first], ...loc(t) };
     }
     if (t.value === "reduis") {
       next();
@@ -818,7 +865,7 @@ function parser(tokens, { functions } = {}) {
       next();
       const nameTok = peek();
       if (!nameTok || nameTok.type !== "IDENT") {
-        fail("après importe, j'attendais un module : maths, temps ou fichiers", nameTok);
+        fail("après importe, j'attendais un module : maths, temps, fichiers ou un fichier .t4c2", nameTok);
       }
       next();
       return { type: "importe", name: nameTok.value.toLowerCase(), ...loc(t) };
@@ -1023,9 +1070,13 @@ function parser(tokens, { functions } = {}) {
       next();
       return { type: t.value, ...loc(t) };
     }
-    if (t.value === "interrompre" || t.value === "continuer") {
+    if (t.value === "interrompre" || t.value === "continuer" || t.value === "passe") {
       next();
       return { type: t.value, ...loc(t) };
+    }
+    if (t.value === "lance" || t.value === "verifie" || t.value === "vide") {
+      const op = next().value;
+      return { type: op, expr: parseExpression(), ...loc(t) };
     }
     if (t.value === "fin" || t.value === "alors" || t.value === "sinon" || t.value === "sinon_si" || t.value === "faire") {
       fail(`« ${t.value} » tout seul. Il manque le début du bloc (si, repete, tant_que…).`, t);
@@ -1210,11 +1261,50 @@ function createRuntime(ast, options = {}) {
       imported.add("fichiers");
       return;
     }
-    throw new T4C2Error(
-      `le module « ${name} » n'existe pas. Essaie : importe maths, importe temps, importe fichiers`,
-      node && node.line,
-      node && node.col,
-    );
+    if (typeof window !== "undefined" || typeof require === "undefined") {
+      throw new T4C2Error(
+        `le module « ${name} » n'existe pas dans le navigateur. Essaie : importe maths, importe temps`,
+        node && node.line,
+        node && node.col,
+      );
+    }
+    const file = moduleFileName(name);
+    if (!file) {
+      throw new T4C2Error(
+        `le module « ${name} » n'existe pas. Essaie : importe maths, importe temps, importe fichiers`,
+        node && node.line,
+        node && node.col,
+      );
+    }
+    imported.add(name);
+    let src;
+    try {
+      src = require("fs").readFileSync(safeFilePath(file, node), "utf8");
+    } catch {
+      imported.delete(name);
+      throw new T4C2Error(
+        `le module « ${name} » n'existe pas. Essaie : importe maths, ou pose ${file} à côté du programme.`,
+        node && node.line,
+        node && node.col,
+      );
+    }
+    const importedAst = parser(lexer(src));
+    walkNodes(importedAst, (child) => {
+      if (child.type === "fonc") functions.set(child.name, makeFonc(child.name, child.params, child.body));
+      if (child.type === "importe") applyImport(child.name, child);
+      if (child.type === "modele") registerModele(child);
+    });
+    const importedBody = importedAst.filter((n) => n.type !== "fonc" && n.type !== "importe" && n.type !== "modele");
+    if (importedBody.length) {
+      const extra = [{ kind: "block", nodes: importedBody, i: 0, scoped: false }];
+      while (extra.length) {
+        const r = stepFrames(extra, null);
+        if (r.done) break;
+        if (r.ask) {
+          throw new T4C2Error("demande n'est pas disponible dans un module importé.", node && node.line, node && node.col);
+        }
+      }
+    }
   }
 
   function getVar(name, node) {
@@ -1418,6 +1508,26 @@ function createRuntime(ast, options = {}) {
         return makeNuple(expr.items.map(evalExpr));
       case "ensemble":
         return makeEnsemble(expr.items.map(evalExpr), valuesEqual);
+      case "trouve": {
+        const fn = evalExpr(expr.fn);
+        const list = asSeq(evalExpr(expr.list));
+        if (!list) {
+          throw new T4C2Error("trouve attend une liste, un nuple ou un ensemble.", expr.line, expr.col);
+        }
+        const hit = list.find((x) => isTruthy(applyAny(fn, [x], expr)));
+        return hit === undefined ? null : hit;
+      }
+      case "trie": {
+        const list = asSeq(evalExpr(expr.list));
+        if (!list) throw new T4C2Error("trie attend une liste.", expr.line, expr.col);
+        const fn = evalExpr(expr.fn);
+        return list.slice().sort((a, b) => {
+          const ka = applyAny(fn, [a], expr);
+          const kb = applyAny(fn, [b], expr);
+          if (typeof ka === "number" && typeof kb === "number") return ka - kb;
+          return String(ka).localeCompare(String(kb), "fr");
+        });
+      }
       case "carte":
       case "filtre": {
         const fn = evalExpr(expr.fn);
@@ -1556,6 +1666,13 @@ function createRuntime(ast, options = {}) {
           if (expr.name === "plancher") return Math.floor(x);
           if (expr.name === "plafond") return Math.ceil(x);
           if (expr.name === "troncature") return Math.trunc(x);
+          if (expr.name === "logarithme") {
+            if (x <= 0) throw new T4C2Error("logarithme attend un nombre positif.", expr.line, expr.col);
+            return Math.log(x);
+          }
+          if (expr.name === "exposant") return Math.exp(x);
+          if (expr.name === "degres") return x * (180 / Math.PI);
+          if (expr.name === "radians") return x * (Math.PI / 180);
         }
         if (imported.has("temps") && (expr.name === "maintenant" || expr.name === "annee" || expr.name === "mois" || expr.name === "jour" || expr.name === "heure")) {
           if (expr.name === "maintenant") return Date.now();
@@ -1588,6 +1705,11 @@ function createRuntime(ast, options = {}) {
         if (op === "ou") {
           if (isTruthy(evalExpr(expr.args[0]))) return true;
           return isTruthy(evalExpr(expr.args[1]));
+        }
+        if (op === "ou_sinon") {
+          const a = evalExpr(expr.args[0]);
+          if (isTruthy(a)) return a;
+          return evalExpr(expr.args[1]);
         }
         const args = expr.args.map(evalExpr);
         if (op === "aleatoire") {
@@ -1773,6 +1895,61 @@ function createRuntime(ast, options = {}) {
           return n;
         }
         if (op === "en_texte") return formatValue(args[0]);
+        if (op === "en_entier") return Math.trunc(num(args[0], op, expr));
+        if (op === "en_liste") {
+          if (typeof args[0] === "string") return args[0].split("");
+          const seq = asSeq(args[0]);
+          if (seq) return seq.slice();
+          if (isRecord(args[0])) return recordKeys(args[0]);
+          throw new T4C2Error("en_liste attend un texte, une liste, un nuple ou un ensemble.", expr.line, expr.col);
+        }
+        if (op === "en_nuple") {
+          const seq = asSeq(args[0]);
+          if (!seq) throw new T4C2Error("en_nuple attend une liste, un nuple ou un ensemble.", expr.line, expr.col);
+          return makeNuple(seq);
+        }
+        if (op === "en_ensemble") {
+          const seq = asSeq(args[0]);
+          if (typeof args[0] === "string") return makeEnsemble(args[0].split(""), valuesEqual);
+          if (!seq) throw new T4C2Error("en_ensemble attend une liste, un nuple, un ensemble ou un texte.", expr.line, expr.col);
+          return makeEnsemble(seq, valuesEqual);
+        }
+        if (op === "sans_espaces") return String(args[0]).trim();
+        if (op === "aplatis") {
+          const seq = asSeq(args[0]);
+          if (!seq) throw new T4C2Error("aplatis attend une liste.", expr.line, expr.col);
+          const out = [];
+          seq.forEach((x) => {
+            const inner = asSeq(x);
+            if (inner) inner.forEach((y) => out.push(y));
+            else out.push(x);
+          });
+          return out;
+        }
+        if (op === "choisis") {
+          const seq = asSeq(args[0]);
+          if (!seq || !seq.length) {
+            throw new T4C2Error("choisis attend une liste qui n'est pas vide.", expr.line, expr.col);
+          }
+          return seq[Math.floor(random() * seq.length)];
+        }
+        if (op === "melange") {
+          const seq = asSeq(args[0]);
+          if (!seq) throw new T4C2Error("melange attend une liste.", expr.line, expr.col);
+          const out = seq.slice();
+          for (let i = out.length - 1; i > 0; i--) {
+            const j = Math.floor(random() * (i + 1));
+            const tmp = out[i];
+            out[i] = out[j];
+            out[j] = tmp;
+          }
+          return out;
+        }
+        if (op === "fois") {
+          const n = Math.floor(num(args[1], op, expr));
+          if (n < 0) throw new T4C2Error("fois attend un nombre positif.", expr.line, expr.col);
+          return String(args[0]).repeat(n);
+        }
         if (op === "est_vide") {
           const seq = asSeq(args[0]);
           if (seq) return seq.length === 0;
@@ -1810,10 +1987,11 @@ function createRuntime(ast, options = {}) {
           return "inconnu";
         }
         if (op === "trie") {
-          if (!Array.isArray(args[0])) {
+          const seq = asSeq(args[0]);
+          if (!seq) {
             throw new T4C2Error("trie attend une liste.", expr.line, expr.col);
           }
-          return args[0].slice().sort((a, b) => {
+          return seq.slice().sort((a, b) => {
             if (typeof a === "number" && typeof b === "number") return a - b;
             return String(a).localeCompare(String(b), "fr");
           });
@@ -2018,10 +2196,11 @@ function createRuntime(ast, options = {}) {
         [
           "T4C2 — affiche, soit, fixe, si, selon, pour, pour chaque, repete, tant_que, essaie, enfin",
           "Calcul : ajoute soustrait multiplie divise modulo puissance racine arrondis aleatoire minimum maximum absolu somme moyenne",
-          "Texte : contient coupe remplace separe joint commence_par finit_par forme  ·  Nombre : 3,14  ·  rien",
-          "Données : liste nuple ensemble fiche plage carte filtre reduis apparie numerote compte",
+          "Texte : contient coupe remplace separe joint commence_par finit_par sans_espaces fois forme",
+          "Données : liste nuple ensemble fiche plage carte filtre reduis trouve apparie aplatis",
+          "Contrôle : passe lance verifie  ·  Convertir : en_entier en_liste en_nuple en_ensemble",
           "Objets : modele, nouveau, moi, sur, herite, parent, est",
-          "Plus loin : fonc, applique, type_de, importe maths / temps / fichiers",
+          "Plus loin : fonc, applique, type_de, importe maths / temps / fichiers / un .t4c2",
         ].forEach((line) => emit(line, false));
         return { done: false, node };
       }
@@ -2299,6 +2478,32 @@ function createRuntime(ast, options = {}) {
         fs.writeFileSync(p, formatValue(evalExpr(node.expr)), "utf8");
         return { done: false, node };
       }
+      case "passe":
+        return { done: false, node };
+      case "lance":
+        throw new T4C2Error(formatValue(evalExpr(node.expr)), node.line, node.col);
+      case "verifie": {
+        const ok = evalExpr(node.expr);
+        if (!isTruthy(ok)) {
+          throw new T4C2Error("vérification échouée. La condition est fausse.", node.line, node.col);
+        }
+        global.result = ok;
+        return { done: false, node };
+      }
+      case "vide": {
+        const target = evalExpr(node.expr);
+        if (Array.isArray(target)) {
+          target.length = 0;
+          global.result = target;
+          return { done: false, node };
+        }
+        if (isRecord(target)) {
+          recordKeys(target).forEach((k) => { delete target[k]; });
+          global.result = target;
+          return { done: false, node };
+        }
+        throw new T4C2Error("vide attend une liste, une fiche ou un objet.", node.line, node.col);
+      }
       case "interrompre":
         if (!unwindLoop(frameList, "interrompre")) {
           throw new T4C2Error("interrompre doit être dans une boucle.", node.line, node.col);
@@ -2523,6 +2728,18 @@ function printAst(ast, level = 0) {
         break;
       case "retourne":
         w(`retourne ${printExpr(node.expr)}`);
+        break;
+      case "passe":
+        w("passe");
+        break;
+      case "lance":
+        w(`lance ${printExpr(node.expr)}`);
+        break;
+      case "verifie":
+        w(`verifie ${printExpr(node.expr)}`);
+        break;
+      case "vide":
+        w(`vide ${printExpr(node.expr)}`);
         break;
       case "demande":
         w(`demande ${node.name} ${printExpr(node.prompt)}`);
@@ -2762,6 +2979,14 @@ pour chaque nom note dans apparie noms notes
   affiche forme «{nom} {note}»
 fin
 `,
+  lance: `// Lance — erreur que tu contrôles
+essaie
+  lance «stop»
+attrape e
+  affiche e
+fin
+affiche sans_espaces «  Teo  »
+`,
   tortue: `// Carré
 couleur «bleu»
 repete 4
@@ -2787,7 +3012,8 @@ const MISSIONS = {
   applique: { title: "Applique", goal: "Une fonction stockée qui affiche 42.", expect: ["42"], next: "carte" },
   carte: { title: "Carte", goal: "Double 1 à 4 avec carte. Affiche [2 4 6 8].", expect: ["[2 4 6 8]"], next: "modele" },
   modele: { title: "Modèle", goal: "Un produit qui affiche Mac : 4000.", expect: ["Mac : 4000"], next: "apparie" },
-  apparie: { title: "Apparie", goal: "Relie deux listes. Affiche Ada 18 puis Teo 16.", expect: ["Ada 18", "Teo 16"], next: "tortue" },
+  apparie: { title: "Apparie", goal: "Relie deux listes. Affiche Ada 18 puis Teo 16.", expect: ["Ada 18", "Teo 16"], next: "lance" },
+  lance: { title: "Lance", goal: "Attrape une erreur lancée. Affiche stop puis Teo.", expect: ["stop", "Teo"], next: "tortue" },
   tortue: { title: "Tortue", goal: "Dessine un carré : 4 fois avance et tourne.", expect: null, turtle: 4, next: null },
 };
 
@@ -2795,7 +3021,7 @@ function highlightHtml(code, escapeHtml) {
   const esc = escapeHtml || ((s) =>
     String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
   const src = String(code);
-  const re = /(\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape|enfin|modele|herite)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|ensemble|nuple|plage|carte|filtre|reduis|forme|fusionne|unique|inverse|cles|valeurs|tous|un_parmi|apparie|numerote|somme|moyenne|separe|joint|commence_par|finit_par|compte|nouveau|sur|parent|moi|est|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
+  const re = /(\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape|enfin|modele|herite|passe|lance|verifie)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|ensemble|nuple|plage|carte|filtre|reduis|forme|fusionne|unique|inverse|cles|valeurs|tous|un_parmi|apparie|numerote|somme|moyenne|separe|joint|commence_par|finit_par|compte|trouve|aplatis|choisis|melange|sans_espaces|fois|ou_sinon|en_entier|en_liste|en_nuple|en_ensemble|vide|nouveau|sur|parent|moi|est|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
   let result = "";
   let last = 0;
   let m;

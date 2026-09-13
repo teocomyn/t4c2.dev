@@ -4,7 +4,7 @@
 
 T4C2 est un vrai langage : tu écris **en français**, ça tourne tout de suite. Plus lisible que Python. Plus textuel que Scratch.
 
-Version **1.8.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
+Version **1.9.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
 
 ---
 
@@ -176,6 +176,15 @@ fin
 affiche somme notes
 affiche joint «, » noms
 
+essaie
+  lance «stop»
+attrape e
+  affiche e
+fin
+affiche sans_espaces «  Teo  »
+affiche en_entier 3,7
+affiche ou_sinon rien «ok»
+
 fonc double x
   retourne multiplie x 2
 fin
@@ -242,6 +251,7 @@ instruction = affiche expr
             | fonc ident { ident } bloc fin
             | modele ident [ herite ident ] { fonc … fin } fin
             | importe ident
+            | lance expr | verifie expr | passe | vide expr
             | expr
 expr        = nombre | texte | vrai | faux | rien | ident | ( expr ) | op args…
 ```

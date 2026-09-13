@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.9.0 — 2026-09-13
+
+- Contrôle : `passe`, `lance`, `verifie`.
+- Convertir : `en_entier`, `en_liste`, `en_nuple`, `en_ensemble`.
+- Données : `trouve`, `aplatis`, `vide`, `choisis`, `melange`, `ou_sinon`.
+- Texte : `sans_espaces`, `fois`.
+- Maths : `logarithme`, `exposant`, `degres`, `radians`.
+- `importe mon_module` charge `mon_module.t4c2` (terminal).
+
 ## 1.8.0 — 2026-09-13
 
 - Itération : `apparie`, `numerote`, `pour chaque a b dans`.

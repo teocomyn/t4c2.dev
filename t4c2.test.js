@@ -503,6 +503,45 @@ test("mission apparie", () => {
   assert.equal(c.ok, true);
 });
 
+test("lance verifie conversions", () => {
+  assert.deepEqual(
+    out(`essaie
+  lance «stop»
+attrape e
+  affiche e
+fin
+affiche sans_espaces «  Teo  »
+affiche en_entier 3,7
+affiche aplatis liste (liste 1 2) (liste 3)
+affiche fois «ha» 3
+affiche ou_sinon rien «ok»
+fonc pair x
+  retourne egal modulo x 2 0
+fin
+affiche trouve pair liste 1 3 4 5
+verifie egal 1 1
+passe`),
+    ["stop", "Teo", "3", "[1 2 3]", "hahaha", "ok", "4"],
+  );
+});
+
+test("importe module utilisateur", () => {
+  const fs = require("fs");
+  const name = "_t4c2_mod.t4c2";
+  fs.writeFileSync(name, "fonc triple x\n  retourne multiplie x 3\nfin\n");
+  try {
+    assert.deepEqual(out("importe _t4c2_mod\naffiche triple 7"), ["21"]);
+  } finally {
+    try { fs.unlinkSync(name); } catch { /* ignore */ }
+  }
+});
+
+test("mission lance", () => {
+  const { checkMission, EXAMPLES } = require("./t4c2.js");
+  const r = runProgram(EXAMPLES.lance);
+  assert.equal(checkMission("lance", r).ok, true);
+});
+
 test("mission bonjour", () => {
   const { checkMission } = require("./t4c2.js");
   const r = runProgram("affiche «Bonjour T4C2»\naffiche 1");
