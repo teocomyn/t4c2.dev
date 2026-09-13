@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.0 — 2026-09-13
+
+- Cœur inspiré de Python, en français préfixe : `ensemble`, `nuple`, `plage`.
+- Fonctions : `carte`, `filtre`, `reduis`, `tous`, `un_parmi`.
+- Données : `cles`, `valeurs`, `fusionne`, `unique`, `inverse`.
+- Texte : `forme «Bonjour {prenom}»`. Erreurs : `enfin`.
+
 ## 1.5.0 — 2026-09-12
 
 - Fonctions comme valeurs : `soit f fonc x … fin`, `applique f 21`, `type_de`.

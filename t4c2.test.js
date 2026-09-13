@@ -377,6 +377,45 @@ test("commentaire bloc", () => {
   assert.deepEqual(out("/* ignore */\naffiche 2"), ["2"]);
 });
 
+test("plage ensemble nuple", () => {
+  assert.deepEqual(
+    out("affiche plage 1 4\naffiche type_de nuple 1 2\naffiche contient (ensemble 1 2 2 3) 2"),
+    ["[1 2 3 4]", "nuple", "vrai"],
+  );
+});
+
+test("carte filtre reduis", () => {
+  assert.deepEqual(
+    out(`fonc double x
+  retourne multiplie x 2
+fin
+fonc pair x
+  retourne egal modulo x 2 0
+fin
+affiche carte double plage 1 4
+affiche filtre pair plage 1 6
+affiche reduis ajoute plage 1 4`),
+    ["[2 4 6 8]", "[2 4 6]", "10"],
+  );
+});
+
+test("forme cles enfin", () => {
+  assert.deepEqual(
+    out(`soit prenom «Teo»
+affiche forme «Bonjour {prenom}»
+soit j fiche nom «Léa» score 1
+affiche cles j
+essaie
+  affiche divise 1 0
+attrape e
+  affiche «boom»
+enfin
+  affiche «terminé»
+fin`),
+    ["Bonjour Teo", "[nom score]", "boom", "terminé"],
+  );
+});
+
 test("mission bonjour", () => {
   const { checkMission } = require("./t4c2.js");
   const r = runProgram("affiche «Bonjour T4C2»\naffiche 1");

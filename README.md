@@ -4,7 +4,7 @@
 
 T4C2 est un vrai langage : tu écris **en français**, ça tourne tout de suite. Plus lisible que Python. Plus textuel que Scratch.
 
-Version **1.5.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
+Version **1.6.0**. Licence MIT. Site : [t4c2-dev.vercel.app](https://t4c2-dev.vercel.app/).
 
 ---
 
@@ -150,6 +150,9 @@ soit double fonc x
 fin
 affiche applique double 21
 affiche type_de double
+affiche carte double plage 1 4
+soit prenom «Teo»
+affiche forme «Bonjour {prenom}»
 affiche trie liste 3 1 2
 
 fonc double x

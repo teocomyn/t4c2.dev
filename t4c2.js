@@ -2,14 +2,14 @@
 // T4C2 — Langage de programmation en français
 // Un seul moteur : navigateur + Node. Pas d'effet de bord à l'import.
 
-const VERSION = "1.5.0";
+const VERSION = "1.6.0";
 
 const STMT = new Set([
   "affiche", "soit", "set", "fixe", "aide", "si", "alors", "sinon", "sinon_si", "fin",
   "repete", "tant_que", "faire", "pour", "interrompre", "continuer",
   "fonc", "retourne", "demande", "pousse", "retire", "pose_element", "pose_champ", "insere",
   "avance", "tourne", "leve", "pose", "couleur", "aller_a", "remplis",
-  "selon", "cas", "essaie", "attrape", "importe", "attends",
+  "selon", "cas", "essaie", "attrape", "enfin", "importe", "attends",
   "lis_fichier", "ecris_fichier",
 ]);
 
@@ -17,18 +17,19 @@ const BINARY = new Set([
   "ajoute", "soustrait", "multiplie", "divise", "modulo", "puissance",
   "egal", "different", "plus_grand", "plus_petit",
   "plus_grand_ou_egal", "plus_petit_ou_egal",
-  "et", "ou", "concat", "element", "contient", "index_de",
+  "et", "ou", "concat", "element", "contient", "index_de", "fusionne",
 ]);
 
 const UNARY = new Set([
   "non", "racine", "arrondis", "longueur", "taille", "absolu", "premier", "dernier",
   "en_nombre", "en_texte", "est_vide", "copie", "majuscule", "minuscule", "lis_fichier",
-  "type_de", "trie",
+  "type_de", "trie", "cles", "valeurs", "unique", "inverse",
 ]);
 
 const SPECIAL_EXPR = new Set([
   "aleatoire", "liste", "fiche", "vrai", "faux", "rien", "minimum", "maximum",
   "coupe", "remplace", "champ", "applique",
+  "ensemble", "nuple", "plage", "carte", "filtre", "reduis", "forme", "tous", "un_parmi",
 ]);
 
 const RESERVED = new Set([
@@ -40,7 +41,7 @@ const T4C2_KEYWORDS = [...RESERVED].sort();
 const T4C2_CONTROL = [
   "si", "alors", "sinon", "sinon_si", "fin", "repete", "tant_que",
   "faire", "pour", "fonc", "retourne", "interrompre", "continuer",
-  "selon", "cas", "essaie", "attrape",
+  "selon", "cas", "essaie", "attrape", "enfin",
 ];
 
 const MAX_ITERATIONS = 10000;
@@ -87,6 +88,51 @@ function isFonc(v) {
 
 function makeFonc(name, params, body) {
   return { __t4c2: "fonc", name: name || "", params: params || [], body: body || [] };
+}
+
+function isNuple(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v) && v.__t4c2 === "nuple";
+}
+
+function isEnsemble(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v) && v.__t4c2 === "ensemble";
+}
+
+function makeNuple(items) {
+  return { __t4c2: "nuple", items: Array.isArray(items) ? items.slice() : [] };
+}
+
+function uniqueItems(items, eq) {
+  const same = eq || sameValue;
+  const out = [];
+  for (const x of items || []) {
+    if (!out.some((y) => same(y, x))) out.push(x);
+  }
+  return out;
+}
+
+function makeEnsemble(items, eq) {
+  return { __t4c2: "ensemble", items: uniqueItems(items, eq) };
+}
+
+function asSeq(v) {
+  if (Array.isArray(v)) return v;
+  if (isNuple(v) || isEnsemble(v)) return v.items;
+  return null;
+}
+
+function sameValue(a, b) {
+  if (a === b) return true;
+  const n0 = typeof a === "number";
+  const n1 = typeof b === "number";
+  if (n0 !== n1) {
+    const numSide = n0 ? a : b;
+    const other = n0 ? b : a;
+    if (typeof other === "string" && /^-?\d+([.,]\d+)?$/.test(other.trim())) {
+      return numSide === Number(other.replace(",", "."));
+    }
+  }
+  return false;
 }
 
 function resolveColor(name) {
@@ -453,6 +499,10 @@ function parser(tokens, { functions } = {}) {
       next();
       return { type: "fnref", name: t.value, ...loc(t) };
     }
+    if (t && t.type === "KEYWORD" && (BINARY.has(t.value) || UNARY.has(t.value))) {
+      next();
+      return { type: "builtin_fn", name: t.value, ...loc(t) };
+    }
     return parseExpression(depth);
   }
 
@@ -503,11 +553,40 @@ function parser(tokens, { functions } = {}) {
       while (isExprStart(peek()) && peek().value !== "fonc") args.push(parseExpression(depth + 1));
       return { type: "applique", fn, args, ...loc(t) };
     }
-    if (t.value === "liste") {
-      next();
+    if (t.value === "liste" || t.value === "ensemble" || t.value === "nuple") {
+      const kind = next().value;
       const items = [];
       while (isExprStart(peek())) items.push(parseExpression(depth + 1));
-      return { type: "liste", items, ...loc(t) };
+      return { type: kind, items, ...loc(t) };
+    }
+    if (t.value === "carte" || t.value === "filtre") {
+      const op = next().value;
+      const fn = parseCallee(depth + 1);
+      const list = parseExpression(depth + 1);
+      return { type: op, fn, list, ...loc(t) };
+    }
+    if (t.value === "reduis") {
+      next();
+      const fn = parseCallee(depth + 1);
+      const list = parseExpression(depth + 1);
+      const init = isExprStart(peek()) ? parseExpression(depth + 1) : null;
+      return { type: "reduis", fn, list, init, ...loc(t) };
+    }
+    if (t.value === "forme") {
+      next();
+      return { type: "forme", tpl: parseExpression(depth + 1), ...loc(t) };
+    }
+    if (t.value === "plage") {
+      next();
+      const args = [parseExpression(depth + 1)];
+      if (isExprStart(peek())) args.push(parseExpression(depth + 1));
+      return { type: "call", op: "plage", args, ...loc(t) };
+    }
+    if (t.value === "tous" || t.value === "un_parmi") {
+      const op = next().value;
+      const args = [parseExpression(depth + 1)];
+      if (isExprStart(peek())) args.push(parseExpression(depth + 1));
+      return { type: "call", op, args, ...loc(t) };
     }
     if (t.value === "fiche") {
       next();
@@ -670,16 +749,29 @@ function parser(tokens, { functions } = {}) {
     }
     if (t.value === "essaie") {
       next();
-      const body = parseBlock(["attrape", "fin"]);
-      expectValue("attrape");
-      const nameTok = peek();
-      if (!nameTok || nameTok.type !== "IDENT") {
-        fail("après attrape, j'attendais un nom. Essaie : essaie … attrape e … fin", nameTok);
+      const body = parseBlock(["attrape", "enfin", "fin"]);
+      let name = null;
+      let catchBody = [];
+      if (at("KEYWORD", "attrape")) {
+        next();
+        const nameTok = peek();
+        if (!nameTok || nameTok.type !== "IDENT") {
+          fail("après attrape, j'attendais un nom. Essaie : essaie … attrape e … fin", nameTok);
+        }
+        next();
+        name = nameTok.value;
+        catchBody = parseBlock(["enfin", "fin"]);
       }
-      next();
-      const catchBody = parseBlock(["fin"]);
+      let finallyBody = [];
+      if (at("KEYWORD", "enfin")) {
+        next();
+        finallyBody = parseBlock(["fin"]);
+      }
+      if (!name) {
+        fail("essaie attend attrape. Tu peux ajouter enfin juste avant fin.", peek());
+      }
       expectValue("fin");
-      return { type: "essaie", body, name: nameTok.value, catchBody, ...loc(t) };
+      return { type: "essaie", body, name, catchBody, finallyBody, ...loc(t) };
     }
     if (t.value === "si") {
       next();
@@ -842,6 +934,8 @@ function formatValue(val) {
     return String(rounded).replace(".", ",");
   }
   if (Array.isArray(val)) return `[${val.map(formatValue).join(" ")}]`;
+  if (isNuple(val)) return `(${val.items.map(formatValue).join(" ")})`;
+  if (isEnsemble(val)) return `#{${val.items.map(formatValue).join(" ")}}`;
   if (isFiche(val)) {
     return `{${ficheKeys(val).map((k) => `${k} ${formatValue(val[k])}`).join(" ")}}`;
   }
@@ -1013,17 +1107,20 @@ function createRuntime(ast, options = {}) {
   }
 
   function valuesEqual(a, b) {
-    if (a === b) return true;
-    const n0 = typeof a === "number";
-    const n1 = typeof b === "number";
-    if (n0 !== n1) {
-      const numSide = n0 ? a : b;
-      const other = n0 ? b : a;
-      if (typeof other === "string" && /^-?\d+([.,]\d+)?$/.test(other.trim())) {
-        return numSide === Number(other.replace(",", "."));
-      }
+    return sameValue(a, b);
+  }
+
+  function applyAny(fn, args, node) {
+    if (fn && fn.__t4c2 === "builtin_fn") {
+      return evalExpr({
+        type: "call",
+        op: fn.name,
+        args: args.map((v) => ({ type: "literal", value: v })),
+        line: node && node.line,
+        col: node && node.col,
+      });
     }
-    return false;
+    return callUserFn(fn, args, node);
   }
 
   function callUserFn(fn, args, node) {
@@ -1083,6 +1180,44 @@ function createRuntime(ast, options = {}) {
         return getVar(expr.name, expr);
       case "liste":
         return expr.items.map(evalExpr);
+      case "nuple":
+        return makeNuple(expr.items.map(evalExpr));
+      case "ensemble":
+        return makeEnsemble(expr.items.map(evalExpr), valuesEqual);
+      case "carte":
+      case "filtre": {
+        const fn = evalExpr(expr.fn);
+        const list = asSeq(evalExpr(expr.list));
+        if (!list) {
+          throw new T4C2Error(`${expr.type} attend une liste, un nuple ou un ensemble.`, expr.line, expr.col);
+        }
+        if (expr.type === "carte") return list.map((x) => applyAny(fn, [x], expr));
+        return list.filter((x) => isTruthy(applyAny(fn, [x], expr)));
+      }
+      case "reduis": {
+        const fn = evalExpr(expr.fn);
+        const list = asSeq(evalExpr(expr.list));
+        if (!list) {
+          throw new T4C2Error("reduis attend une liste, un nuple ou un ensemble.", expr.line, expr.col);
+        }
+        if (expr.init) {
+          return list.reduce((acc, x) => applyAny(fn, [acc, x], expr), evalExpr(expr.init));
+        }
+        if (!list.length) {
+          throw new T4C2Error("reduis sur une liste vide a besoin d'un départ. Essaie : reduis ajoute n 0", expr.line, expr.col);
+        }
+        return list.slice(1).reduce((acc, x) => applyAny(fn, [acc, x], expr), list[0]);
+      }
+      case "forme": {
+        const tpl = evalExpr(expr.tpl);
+        return String(tpl).replace(/\{([A-Za-z_éèêëàâùûôîïüçÉÈÊËÀÂÙÛÔÎÏÜÇ][A-Za-z0-9_éèêëàâùûôîïüçÉÈÊËÀÂÙÛÔÎÏÜÇ]*)\}/g, (_, name) => {
+          try {
+            return formatValue(getVar(name, expr));
+          } catch {
+            return `{${name}}`;
+          }
+        });
+      }
       case "fiche": {
         const o = makeFiche();
         expr.pairs.forEach((p) => {
@@ -1112,8 +1247,10 @@ function createRuntime(ast, options = {}) {
       }
       case "fonc_expr":
         return makeFonc("", expr.params, expr.body);
+      case "builtin_fn":
+        return { __t4c2: "builtin_fn", name: expr.name };
       case "applique":
-        return callUserFn(evalExpr(expr.fn), expr.args.map(evalExpr), expr);
+        return applyAny(evalExpr(expr.fn), expr.args.map(evalExpr), expr);
       case "appel": {
         const args = expr.args.map(evalExpr);
         if (imported.has("maths") && Object.prototype.hasOwnProperty.call(MATHS_ARITY, expr.name)) {
@@ -1181,20 +1318,89 @@ function createRuntime(ast, options = {}) {
           return pick(num(args[0], op, expr), num(args[1], op, expr));
         }
         if (op === "longueur") {
-          if (Array.isArray(args[0])) return args[0].length;
+          const seq = asSeq(args[0]);
+          if (seq) return seq.length;
+          if (isFiche(args[0])) return ficheKeys(args[0]).length;
           return String(args[0]).length;
         }
         if (op === "taille") {
-          if (!Array.isArray(args[0])) {
-            throw new T4C2Error("taille attend une liste.", expr.line, expr.col);
+          const seq = asSeq(args[0]);
+          if (!seq) {
+            throw new T4C2Error("taille attend une liste, un nuple ou un ensemble.", expr.line, expr.col);
           }
-          return args[0].length;
+          return seq.length;
         }
         if (op === "premier" || op === "dernier") {
-          if (!Array.isArray(args[0]) || !args[0].length) {
+          const seq = asSeq(args[0]);
+          if (!seq || !seq.length) {
             throw new T4C2Error(`${op} attend une liste qui n'est pas vide.`, expr.line, expr.col);
           }
-          return op === "premier" ? args[0][0] : args[0][args[0].length - 1];
+          return op === "premier" ? seq[0] : seq[seq.length - 1];
+        }
+        if (op === "cles") {
+          if (!isFiche(args[0])) {
+            throw new T4C2Error("cles attend une fiche.", expr.line, expr.col);
+          }
+          return ficheKeys(args[0]);
+        }
+        if (op === "valeurs") {
+          if (!isFiche(args[0])) {
+            throw new T4C2Error("valeurs attend une fiche.", expr.line, expr.col);
+          }
+          return ficheKeys(args[0]).map((k) => args[0][k]);
+        }
+        if (op === "unique") {
+          const seq = asSeq(args[0]);
+          if (!seq) throw new T4C2Error("unique attend une liste, un nuple ou un ensemble.", expr.line, expr.col);
+          return uniqueItems(seq, valuesEqual);
+        }
+        if (op === "inverse") {
+          const seq = asSeq(args[0]);
+          if (!seq) throw new T4C2Error("inverse attend une liste ou un nuple.", expr.line, expr.col);
+          if (isEnsemble(args[0])) {
+            throw new T4C2Error("inverse n'a pas de sens sur un ensemble.", expr.line, expr.col);
+          }
+          return seq.slice().reverse();
+        }
+        if (op === "plage") {
+          const a = Math.floor(num(args[0], op, expr));
+          const b = args[1] === undefined ? a : Math.floor(num(args[1], op, expr));
+          const from = args[1] === undefined ? 1 : a;
+          const to = args[1] === undefined ? a : b;
+          const out = [];
+          if (from <= to) {
+            for (let i = from; i <= to; i++) out.push(i);
+          } else {
+            for (let i = from; i >= to; i--) out.push(i);
+          }
+          return out;
+        }
+        if (op === "tous" || op === "un_parmi") {
+          let pred = null;
+          let seq = asSeq(args[0]);
+          if (isFonc(args[0])) {
+            pred = args[0];
+            seq = asSeq(args[1]);
+          }
+          if (!seq) {
+            throw new T4C2Error(`${op} attend une liste, ou une fonction puis une liste.`, expr.line, expr.col);
+          }
+          const test = (x) => (pred ? isTruthy(applyAny(pred, [x], expr)) : isTruthy(x));
+          return op === "tous" ? seq.every(test) : seq.some(test);
+        }
+        if (op === "fusionne") {
+          if (Array.isArray(args[0]) && Array.isArray(args[1])) return args[0].concat(args[1]);
+          if (isNuple(args[0]) && isNuple(args[1])) return makeNuple(args[0].items.concat(args[1].items));
+          if (isEnsemble(args[0]) || isEnsemble(args[1])) {
+            return makeEnsemble([].concat(asSeq(args[0]) || [], asSeq(args[1]) || []), valuesEqual);
+          }
+          if (isFiche(args[0]) && isFiche(args[1])) {
+            const o = makeFiche();
+            ficheKeys(args[0]).forEach((k) => { o[k] = args[0][k]; });
+            ficheKeys(args[1]).forEach((k) => { o[k] = args[1][k]; });
+            return o;
+          }
+          throw new T4C2Error("fusionne attend deux listes, deux fiches, deux nuples ou des ensembles.", expr.line, expr.col);
         }
         if (op === "en_nombre") {
           const raw = String(args[0]).trim().replace(",", ".");
@@ -1206,18 +1412,22 @@ function createRuntime(ast, options = {}) {
         }
         if (op === "en_texte") return formatValue(args[0]);
         if (op === "est_vide") {
-          if (Array.isArray(args[0]) || typeof args[0] === "string") return args[0].length === 0;
+          const seq = asSeq(args[0]);
+          if (seq) return seq.length === 0;
+          if (typeof args[0] === "string") return args[0].length === 0;
           if (isFiche(args[0])) return ficheKeys(args[0]).length === 0;
           return args[0] === null || args[0] === "";
         }
         if (op === "copie") {
           if (Array.isArray(args[0])) return args[0].slice();
+          if (isNuple(args[0])) return makeNuple(args[0].items);
+          if (isEnsemble(args[0])) return makeEnsemble(args[0].items, valuesEqual);
           if (isFiche(args[0])) {
             const o = makeFiche();
             ficheKeys(args[0]).forEach((k) => { o[k] = args[0][k]; });
             return o;
           }
-          throw new T4C2Error("copie attend une liste ou une fiche.", expr.line, expr.col);
+          throw new T4C2Error("copie attend une liste, un nuple, un ensemble ou une fiche.", expr.line, expr.col);
         }
         if (op === "type_de") {
           if (args[0] === null || args[0] === undefined) return "rien";
@@ -1225,6 +1435,8 @@ function createRuntime(ast, options = {}) {
           if (typeof args[0] === "number") return "nombre";
           if (typeof args[0] === "string") return "texte";
           if (Array.isArray(args[0])) return "liste";
+          if (isNuple(args[0])) return "nuple";
+          if (isEnsemble(args[0])) return "ensemble";
           if (isFiche(args[0])) return "fiche";
           if (isFonc(args[0])) return "fonc";
           return "inconnu";
@@ -1265,8 +1477,9 @@ function createRuntime(ast, options = {}) {
         }
         if (op === "contient") {
           if (typeof args[0] === "string") return args[0].includes(String(args[1]));
-          if (Array.isArray(args[0])) return args[0].some((v) => valuesEqual(v, args[1]));
-          throw new T4C2Error("contient attend un texte ou une liste.", expr.line, expr.col);
+          const seq = asSeq(args[0]);
+          if (seq) return seq.some((v) => valuesEqual(v, args[1]));
+          throw new T4C2Error("contient attend un texte, une liste, un nuple ou un ensemble.", expr.line, expr.col);
         }
         if (op === "coupe") {
           const start = Math.floor(num(args[1], op, expr));
@@ -1291,14 +1504,18 @@ function createRuntime(ast, options = {}) {
         }
         if (op === "concat") return String(args[0]) + String(args[1]);
         if (op === "element") {
-          if (!Array.isArray(args[0])) {
-            throw new T4C2Error("element attend une liste.", expr.line, expr.col);
+          if (isEnsemble(args[0])) {
+            throw new T4C2Error("un ensemble n'a pas d'ordre. Utilise contient.", expr.line, expr.col);
+          }
+          const seq = asSeq(args[0]);
+          if (!seq) {
+            throw new T4C2Error("element attend une liste ou un nuple.", expr.line, expr.col);
           }
           const idx = Math.floor(num(args[1], op, expr));
-          if (idx < 1 || idx > args[0].length) {
-            throw new T4C2Error(`l'élément ${idx} n'existe pas (la liste va de 1 à ${args[0].length}).`, expr.line, expr.col);
+          if (idx < 1 || idx > seq.length) {
+            throw new T4C2Error(`l'élément ${idx} n'existe pas (la collection va de 1 à ${seq.length}).`, expr.line, expr.col);
           }
-          return args[0][idx - 1];
+          return seq[idx - 1];
         }
         if (op === "egal") return valuesEqual(args[0], args[1]);
         if (op === "different") return !valuesEqual(args[0], args[1]);
@@ -1354,10 +1571,11 @@ function createRuntime(ast, options = {}) {
     while (frameList.length) {
       const f = frameList[frameList.length - 1];
       if (f.kind === "essaie") {
+        const finallyBody = f.finallyBody || [];
         dropFrame(frameList);
         pushScope();
         setVar(f.name, String(err.message || err).replace(/^Ligne \d+, colonne \d+ : /, ""));
-        frameList.push({ kind: "block", nodes: f.catchBody, i: 0, scoped: true });
+        frameList.push({ kind: "catch", nodes: f.catchBody, i: 0, scoped: true, finallyBody });
         return true;
       }
       if (f.kind === "fn") break;
@@ -1402,6 +1620,11 @@ function createRuntime(ast, options = {}) {
             f.i = 0;
             continue;
           }
+        } else if ((f.kind === "essaie" || f.kind === "catch") && f.finallyBody && f.finallyBody.length) {
+          const fin = f.finallyBody;
+          dropFrame(frameList);
+          enterBlock(frameList, fin);
+          continue;
         }
         dropFrame(frameList);
         continue;
@@ -1425,10 +1648,10 @@ function createRuntime(ast, options = {}) {
     switch (node.type) {
       case "aide": {
         [
-          "T4C2 — affiche, soit, fixe, si, selon, pour, pour chaque, repete, tant_que, essaie",
+          "T4C2 — affiche, soit, fixe, si, selon, pour, pour chaque, repete, tant_que, essaie, enfin",
           "Calcul : ajoute soustrait multiplie divise modulo puissance racine arrondis aleatoire minimum maximum absolu",
-          "Texte : contient coupe remplace majuscule minuscule  ·  Nombre : 3,14  ·  rien",
-          "Données : fiche champ pose_champ liste pose_element premier dernier",
+          "Texte : contient coupe remplace majuscule minuscule forme  ·  Nombre : 3,14  ·  rien",
+          "Données : liste nuple ensemble fiche plage carte filtre reduis cles valeurs",
           "Plus loin : fonc, applique, type_de, importe maths / temps / fichiers",
         ].forEach((line) => emit(line, false));
         return { done: false, node };
@@ -1486,6 +1709,7 @@ function createRuntime(ast, options = {}) {
           scoped: true,
           name: node.name,
           catchBody: node.catchBody,
+          finallyBody: node.finallyBody || [],
         });
         return { done: false, node };
       }
@@ -1529,9 +1753,9 @@ function createRuntime(ast, options = {}) {
         return { done: false, node };
       }
       case "pour_chaque": {
-        const list = evalExpr(node.list);
-        if (!Array.isArray(list)) {
-          throw new T4C2Error("pour chaque attend une liste. Essaie : pour chaque note dans notes", node.line, node.col);
+        const list = asSeq(evalExpr(node.list));
+        if (!list) {
+          throw new T4C2Error("pour chaque attend une liste, un nuple ou un ensemble.", node.line, node.col);
         }
         if (list.length) {
           enterLoop(frameList, {
@@ -1539,7 +1763,7 @@ function createRuntime(ast, options = {}) {
             nodes: node.body,
             i: 0,
             name: node.name,
-            items: list,
+            items: list.slice(),
             idx: 0,
           });
           setVar(node.name, list[0]);
@@ -1564,6 +1788,9 @@ function createRuntime(ast, options = {}) {
       }
       case "pousse": {
         const list = evalExpr(node.list);
+        if (isNuple(list)) {
+          throw new T4C2Error("un nuple ne change pas. Utilise une liste.", node.line, node.col);
+        }
         if (!Array.isArray(list)) {
           throw new T4C2Error("pousse attend une liste.", node.line, node.col);
         }
@@ -1594,6 +1821,9 @@ function createRuntime(ast, options = {}) {
       }
       case "pose_element": {
         const list = evalExpr(node.list);
+        if (isNuple(list)) {
+          throw new T4C2Error("un nuple ne change pas. Utilise une liste.", node.line, node.col);
+        }
         if (!Array.isArray(list)) {
           throw new T4C2Error("pose_element attend une liste.", node.line, node.col);
         }
@@ -1958,10 +2188,10 @@ function formatT4C2(code) {
       continue;
     }
     const bare = trimmed.replace(/\/\/.*$/, "").replace(/#.*$/, "").trim().toLowerCase();
-    const closer = /^(fin|sinon|sinon_si|cas|attrape)\b/.test(bare);
+    const closer = /^(fin|sinon|sinon_si|cas|attrape|enfin)\b/.test(bare);
     if (closer) depth = Math.max(0, depth - 1);
     out.push("  ".repeat(depth) + trimmed);
-    if (/^(sinon|sinon_si|cas|attrape)\b/.test(bare)) depth += 1;
+    if (/^(sinon|sinon_si|cas|attrape|enfin)\b/.test(bare)) depth += 1;
     else if (/^(si|repete|tant_que|pour|fonc|selon|essaie)\b/.test(bare)) depth += 1;
   }
   return out.join("\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]+$/gm, "").replace(/\s+$/, "") + "\n";
@@ -2123,6 +2353,12 @@ soit double fonc x
 fin
 affiche applique double 21
 `,
+  carte: `// Carte — comme map en Python
+fonc double x
+  retourne multiplie x 2
+fin
+affiche carte double plage 1 4
+`,
   tortue: `// Carré
 couleur «bleu»
 repete 4
@@ -2145,7 +2381,8 @@ const MISSIONS = {
   fiche: { title: "Fiche", goal: "Une fiche avec un nom et un score.", expect: ["Léa", "20"], next: "texte" },
   texte: { title: "Texte", goal: "Majuscule, contient, coupe.", expect: ["T4C2", "vrai", "bon"], next: "selon" },
   selon: { title: "Selon", goal: "Selon un jour, affiche début ou autre.", expect: ["début"], next: "applique" },
-  applique: { title: "Applique", goal: "Une fonction stockée qui affiche 42.", expect: ["42"], next: "tortue" },
+  applique: { title: "Applique", goal: "Une fonction stockée qui affiche 42.", expect: ["42"], next: "carte" },
+  carte: { title: "Carte", goal: "Double 1 à 4 avec carte. Affiche [2 4 6 8].", expect: ["[2 4 6 8]"], next: "tortue" },
   tortue: { title: "Tortue", goal: "Dessine un carré : 4 fois avance et tourne.", expect: null, turtle: 4, next: null },
 };
 
@@ -2153,7 +2390,7 @@ function highlightHtml(code, escapeHtml) {
   const esc = escapeHtml || ((s) =>
     String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
   const src = String(code);
-  const re = /(\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
+  const re = /(\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*)|([«“][^»”]*[»”]|"(?:[^"\\]|\\.)*")|\b(si|alors|sinon_si|sinon|fin|repete|tant_que|faire|pour|chaque|dans|de|fonc|retourne|interrompre|continuer|selon|cas|essaie|attrape|enfin)\b|\b(affiche|aide|soit|set|fixe|demande|ajoute|soustrait|multiplie|divise|modulo|puissance|racine|arrondis|aleatoire|minimum|maximum|absolu|egal|different|plus_grand_ou_egal|plus_petit_ou_egal|plus_grand|plus_petit|et|ou|non|concat|longueur|liste|fiche|ensemble|nuple|plage|carte|filtre|reduis|forme|fusionne|unique|inverse|cles|valeurs|tous|un_parmi|champ|pose_champ|pose_element|insere|pousse|retire|taille|element|premier|dernier|contient|coupe|remplace|majuscule|minuscule|en_nombre|en_texte|est_vide|copie|trie|type_de|index_de|applique|rien|importe|attends|lis_fichier|ecris_fichier|avance|tourne|leve|pose|couleur|aller_a|remplis|vrai|faux)\b|\b(-?\d+(?:[.,]\d+)?)\b/gi;
   let result = "";
   let last = 0;
   let m;

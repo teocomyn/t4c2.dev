@@ -19,7 +19,7 @@
     <canvas id="constellation-canvas" class="constellation" data-theme="dark"></canvas>
   </div>
 
-  <div class="home-shell">
+  <div class="home-shell" id="haut">
     <nav class="home-nav" aria-label="Navigation">
       <a class="brand-mark" href="index.html" aria-current="page">
         <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="#14181f"/><circle cx="32" cy="18" r="7" fill="#e8f0f8"/><circle cx="18" cy="32" r="7" fill="#e8f0f8"/><circle cx="46" cy="32" r="7" fill="#e8f0f8"/><circle cx="32" cy="46" r="7" fill="#e8f0f8"/><rect x="29" y="22" width="6" height="20" rx="3" fill="#2f6fed"/><rect x="23" y="22" width="18" height="6" rx="3" fill="#2f6fed"/></svg>
@@ -109,14 +109,52 @@ affiche message</textarea>
         <canvas id="sparkles-canvas"></canvas>
         <div class="sparkles-fade"></div>
       </div>
-      <footer class="brand-foot">
-        <span>T4C2 · Teo Comyn · MIT</span>
-        <span>Clarté, créativité, accessibilité.</span>
+      <footer class="home-foot">
+        <div class="home-foot-inner">
+          <div class="home-foot-top">
+            <div class="home-foot-sign">
+              <p class="home-foot-kicker">T4C2 · 1.6 · le langage en français</p>
+              <p class="home-foot-code">affiche «Le français suffit.»</p>
+              <p class="home-foot-lede">Un vrai langage. Tu écris comme tu parles. Ça tourne dans le navigateur et dans le terminal.</p>
+            </div>
+            <div class="home-foot-actions">
+              <a class="home-btn home-btn-p" href="t4c2_web.html">Ouvrir le playground</a>
+              <a class="home-btn home-btn-g" href="docs.html">Lire la référence</a>
+            </div>
+          </div>
+
+          <div class="home-foot-grid">
+            <nav class="home-foot-col" aria-label="Écrire">
+              <p class="home-label">Écrire</p>
+              <a href="t4c2_web.html">Playground</a>
+              <a href="#studio">Essayer ici</a>
+              <a href="docs.html">Référence</a>
+            </nav>
+            <nav class="home-foot-col" aria-label="Apprendre">
+              <p class="home-label">Apprendre</p>
+              <a href="fiche.html">Fiche prof</a>
+              <a href="t4c2_web.html">Missions</a>
+              <a href="https://github.com/teocomyn/t4c2.dev#readme">Lire le dépôt</a>
+            </nav>
+            <nav class="home-foot-col" aria-label="Projet">
+              <p class="home-label">Projet</p>
+              <a href="https://github.com/teocomyn/t4c2.dev">GitHub</a>
+              <a href="https://github.com/teocomyn/t4c2.dev/blob/main/LICENSE">Licence MIT</a>
+              <span class="home-foot-meta">node t4c2.js</span>
+            </nav>
+          </div>
+
+          <div class="home-foot-bar">
+            <p>Teo Comyn · MIT · un seul moteur</p>
+            <p>Clarté · créativité · accessibilité</p>
+            <a href="#haut">Haut de page</a>
+          </div>
+        </div>
       </footer>
     </section>
   </div>
 
-  <script src="t4c2.js"></script>
+  <script src="t4c2.js?v=1.6.0"></script>
   <script src="constellation.js"></script>
   <script src="sparkles.js"></script>
   <script src="home.js"></script>
